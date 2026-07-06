@@ -12,12 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TorresRouteImport } from './routes/torres'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as RecuperarPasswordRouteImport } from './routes/recuperar-password'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as MapaRouteImport } from './routes/mapa'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as EquipasRouteImport } from './routes/equipas'
 import { Route as EquipamentosRouteImport } from './routes/equipamentos'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TorresTorreIdRouteImport } from './routes/torres.$torreId'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
+import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 
 const TorresRoute = TorresRouteImport.update({
   id: '/torres',
@@ -32,6 +36,11 @@ const RelatoriosRoute = RelatoriosRouteImport.update({
 const RecuperarPasswordRoute = RecuperarPasswordRouteImport.update({
   id: '/recuperar-password',
   path: '/recuperar-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MapaRoute = MapaRouteImport.update({
@@ -64,6 +73,24 @@ const TorresTorreIdRoute = TorresTorreIdRouteImport.update({
   path: '/$torreId',
   getParentRoute: () => TorresRoute,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotmcpChar93ListToolsRoute =
+  Char91DotmcpChar93ListToolsRouteImport.update({
+    id: '/.mcp/list-tools',
+    path: '/.mcp/list-tools',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotmcpChar93InvokeToolToolRoute =
+  Char91DotmcpChar93InvokeToolToolRouteImport.update({
+    id: '/.mcp/invoke-tool/$tool',
+    path: '/.mcp/invoke-tool/$tool',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -71,10 +98,14 @@ export interface FileRoutesByFullPath {
   '/equipas': typeof EquipasRoute
   '/login': typeof LoginRoute
   '/mapa': typeof MapaRoute
+  '/mcp': typeof McpRoute
   '/recuperar-password': typeof RecuperarPasswordRoute
   '/relatorios': typeof RelatoriosRoute
   '/torres': typeof TorresRouteWithChildren
+  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/torres/$torreId': typeof TorresTorreIdRoute
+  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -82,10 +113,14 @@ export interface FileRoutesByTo {
   '/equipas': typeof EquipasRoute
   '/login': typeof LoginRoute
   '/mapa': typeof MapaRoute
+  '/mcp': typeof McpRoute
   '/recuperar-password': typeof RecuperarPasswordRoute
   '/relatorios': typeof RelatoriosRoute
   '/torres': typeof TorresRouteWithChildren
+  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/torres/$torreId': typeof TorresTorreIdRoute
+  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -94,10 +129,14 @@ export interface FileRoutesById {
   '/equipas': typeof EquipasRoute
   '/login': typeof LoginRoute
   '/mapa': typeof MapaRoute
+  '/mcp': typeof McpRoute
   '/recuperar-password': typeof RecuperarPasswordRoute
   '/relatorios': typeof RelatoriosRoute
   '/torres': typeof TorresRouteWithChildren
+  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/torres/$torreId': typeof TorresTorreIdRoute
+  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,10 +146,14 @@ export interface FileRouteTypes {
     | '/equipas'
     | '/login'
     | '/mapa'
+    | '/mcp'
     | '/recuperar-password'
     | '/relatorios'
     | '/torres'
+    | '/.mcp/list-tools'
+    | '/.well-known/oauth-protected-resource'
     | '/torres/$torreId'
+    | '/.mcp/invoke-tool/$tool'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -118,10 +161,14 @@ export interface FileRouteTypes {
     | '/equipas'
     | '/login'
     | '/mapa'
+    | '/mcp'
     | '/recuperar-password'
     | '/relatorios'
     | '/torres'
+    | '/.mcp/list-tools'
+    | '/.well-known/oauth-protected-resource'
     | '/torres/$torreId'
+    | '/.mcp/invoke-tool/$tool'
   id:
     | '__root__'
     | '/'
@@ -129,10 +176,14 @@ export interface FileRouteTypes {
     | '/equipas'
     | '/login'
     | '/mapa'
+    | '/mcp'
     | '/recuperar-password'
     | '/relatorios'
     | '/torres'
+    | '/.mcp/list-tools'
+    | '/.well-known/oauth-protected-resource'
     | '/torres/$torreId'
+    | '/.mcp/invoke-tool/$tool'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -141,9 +192,13 @@ export interface RootRouteChildren {
   EquipasRoute: typeof EquipasRoute
   LoginRoute: typeof LoginRoute
   MapaRoute: typeof MapaRoute
+  McpRoute: typeof McpRoute
   RecuperarPasswordRoute: typeof RecuperarPasswordRoute
   RelatoriosRoute: typeof RelatoriosRoute
   TorresRoute: typeof TorresRouteWithChildren
+  Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -167,6 +222,13 @@ declare module '@tanstack/react-router' {
       path: '/recuperar-password'
       fullPath: '/recuperar-password'
       preLoaderRoute: typeof RecuperarPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mapa': {
@@ -211,6 +273,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TorresTorreIdRouteImport
       parentRoute: typeof TorresRoute
     }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.mcp/list-tools': {
+      id: '/.mcp/list-tools'
+      path: '/.mcp/list-tools'
+      fullPath: '/.mcp/list-tools'
+      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.mcp/invoke-tool/$tool': {
+      id: '/.mcp/invoke-tool/$tool'
+      path: '/.mcp/invoke-tool/$tool'
+      fullPath: '/.mcp/invoke-tool/$tool'
+      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -231,9 +314,14 @@ const rootRouteChildren: RootRouteChildren = {
   EquipasRoute: EquipasRoute,
   LoginRoute: LoginRoute,
   MapaRoute: MapaRoute,
+  McpRoute: McpRoute,
   RecuperarPasswordRoute: RecuperarPasswordRoute,
   RelatoriosRoute: RelatoriosRoute,
   TorresRoute: TorresRouteWithChildren,
+  Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
