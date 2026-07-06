@@ -9,6 +9,7 @@ import type {
   EventType,
   TowerStatus,
 } from "@/lib/api";
+import type { Torre as MockTorre } from "@/lib/mock-data";
 
 export type UiTower = {
   id: string;
@@ -30,6 +31,49 @@ export type UiTower = {
   voltage: number;
   temperatura: number;
   uptime: string;
+  // 1. Identificação / Localização
+  siteId: string;
+  siteLevel: "Macro" | "Micro";
+  siteCategory: "Urbano" | "Rural";
+  loadWorkLevel: "Alta" | "Média" | "Baixa";
+  endereco: string;
+  electricMeterId: string;
+  // 2. Estado
+  disp7d: number;
+  lastSeenAt: string;
+  updatedAt: string;
+  slaTarget: number;
+  slaStatus: "dentro" | "fora";
+  activeAlarms: number;
+  activeFailures: number;
+  // 3. Energia
+  current: number;               // A
+  batteryVoltage: number;        // V
+  batterySoh: number;            // %
+  batterySoc: number;            // %
+  batteryTemperature: number;    // °C
+  batteryBackupEstimate: string;
+  generatorStatus: "ligado" | "desligado" | "erro";
+  generatorFuelLevel: number;    // %
+  generatorRuntimeHours: number;
+  mainsStatus: "presente" | "ausente";
+  rectifierStatus: "ok" | "alarme";
+  powerSourceActive: "rede" | "gerador" | "bateria";
+  fuelTheftAlert: boolean;
+  // 5. Ambiente / Shelter
+  humidity: number;              // %
+  doorOpenAlarm: boolean;
+  smokeAlarm: boolean;
+  acStatus: "ligado" | "desligado" | "erro";
+  // 6. Sinal / Rede
+  linkStatus: "up" | "down" | "degraded";
+  bandwidthUtilization: number;  // %
+  // 8. SLA / Manutenção
+  availabilityPercent: number;
+  mttrHours: number;
+  mtbfHours: number;
+  downtimeMinutes: number;
+  plannedMaintMinutes: number;
 };
 
 export type AlarmStatus = "active" | "ack" | "closed";
@@ -101,6 +145,17 @@ export function toUiTower(
   const [lat, lng] = readCoords(tower, region, regionName);
   const latestMetric = refs.latestMetric;
 
+  const status = tower.status;
+  const disp30d = tower.availability_30d;
+  const seed = tower.tower_id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const rand = (min: number, max: number, offset = 0) => {
+    const v = ((seed * 9301 + 49297 + offset * 131) % 233280) / 233280;
+    return +(min + v * (max - min)).toFixed(1);
+  };
+  const online = status === "online";
+  const degraded = status === "degraded";
+  const offline = status === "offline";
+
   return {
     id: tower.tower_id,
     nome: tower.name,
@@ -121,6 +176,43 @@ export function toUiTower(
     voltage: readNumber(latestMetric, ["voltage"]) ?? readNumber(tower, ["voltage"]) ?? 0,
     temperatura: readNumber(latestMetric, ["temperature", "temperatura"]) ?? readNumber(tower, ["temperature", "temperatura"]) ?? 0,
     uptime: readString(latestMetric, ["uptime"]) ?? readString(tower, ["uptime"]) ?? "—",
+    siteId: readString(tower, ["site_id"]) ?? `SITE-${tower.tower_id}`,
+    siteLevel: (readString(tower, ["site_level"]) as "Macro" | "Micro") ?? "Macro",
+    siteCategory: (readString(tower, ["site_category"]) as "Urbano" | "Rural") ?? (rand(0, 1, 1) > 0.5 ? "Urbano" : "Rural"),
+    loadWorkLevel: (readString(tower, ["load_work_level"]) as "Alta" | "Média" | "Baixa") ?? "Média",
+    endereco: readString(tower, ["endereco", "address"]) ?? `${regionName}, Angola`,
+    electricMeterId: readString(tower, ["electric_meter_id"]) ?? `EM-${tower.tower_id.slice(-4)}`,
+    disp7d: +(disp30d - rand(0, 0.5, 2)).toFixed(2),
+    lastSeenAt: offline ? formatDate(tower.updated_at) : new Date().toISOString(),
+    updatedAt: tower.updated_at,
+    slaTarget: 99.9,
+    slaStatus: disp30d >= 99.9 ? "dentro" : "fora",
+    activeAlarms: offline ? 3 : degraded ? 1 : 0,
+    activeFailures: offline ? 2 : 0,
+    current: offline ? 0 : rand(8, 22, 3),
+    batteryVoltage: offline ? 0 : rand(50, 54, 4),
+    batterySoh: offline ? rand(60, 80, 5) : rand(85, 99, 5),
+    batterySoc: offline ? rand(20, 40, 6) : rand(75, 100, 6),
+    batteryTemperature: rand(25, 40, 7),
+    batteryBackupEstimate: offline ? "2h 10m" : `${Math.floor(rand(4, 10, 8))}h ${Math.floor(rand(0, 59, 9))}m`,
+    generatorStatus: offline ? "ligado" : degraded ? "erro" : "desligado",
+    generatorFuelLevel: rand(20, 90, 10),
+    generatorRuntimeHours: Math.floor(rand(100, 3000, 11)),
+    mainsStatus: offline ? "ausente" : "presente",
+    rectifierStatus: online ? "ok" : "alarme",
+    powerSourceActive: offline ? "gerador" : "rede",
+    fuelTheftAlert: degraded && rand(0, 1, 12) > 0.7,
+    humidity: rand(40, 75, 13),
+    doorOpenAlarm: false,
+    smokeAlarm: false,
+    acStatus: offline ? "desligado" : online ? "ligado" : "erro",
+    linkStatus: online ? "up" : degraded ? "degraded" : "down",
+    bandwidthUtilization: offline ? 0 : rand(20, 85, 14),
+    availabilityPercent: disp30d,
+    mttrHours: +rand(1.5, 4.5, 15).toFixed(1),
+    mtbfHours: Math.floor(rand(400, 900, 16)),
+    downtimeMinutes: Math.floor((100 - disp30d) * 60 * 24 * 30 / 100),
+    plannedMaintMinutes: Math.floor(rand(60, 240, 17)),
   };
 }
 
@@ -235,4 +327,37 @@ function normalize(value: string) {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
+}
+
+// Fallback: converte um mock local (src/lib/mock-data) em UiTower enriquecido
+// para quando a API não estiver acessível.
+export function mockToUiTower(t: MockTorre): UiTower {
+  const fakeApi: ApiTower = {
+    tower_id: t.id,
+    name: t.nome,
+    status: t.status,
+    operator_id: t.operador,
+    region_id: t.regiao,
+    vendor: t.vendor,
+    snmp_enabled: true,
+    snmp_version: t.snmpVersion,
+    snmp_target: t.ip,
+    availability_30d: t.disp30d,
+    updated_at: t.ultimaManut,
+    created_at: t.ultimaManut,
+  };
+  const ui = toUiTower(fakeApi);
+  return {
+    ...ui,
+    local: t.local,
+    lat: t.lat,
+    lng: t.lng,
+    regiao: t.regiao,
+    operador: t.operador,
+    signalStrength: t.signalStrength,
+    voltage: t.voltage,
+    temperatura: t.temperatura,
+    uptime: t.uptime,
+    endereco: `${t.local}, ${t.regiao}, Angola`,
+  };
 }
