@@ -30,6 +30,49 @@ export type UiTower = {
   voltage: number;
   temperatura: number;
   uptime: string;
+  // 1. Identificação / Localização
+  siteId: string;
+  siteLevel: "Macro" | "Micro";
+  siteCategory: "Urbano" | "Rural";
+  loadWorkLevel: "Alta" | "Média" | "Baixa";
+  endereco: string;
+  electricMeterId: string;
+  // 2. Estado
+  disp7d: number;
+  lastSeenAt: string;
+  updatedAt: string;
+  slaTarget: number;
+  slaStatus: "dentro" | "fora";
+  activeAlarms: number;
+  activeFailures: number;
+  // 3. Energia
+  current: number;               // A
+  batteryVoltage: number;        // V
+  batterySoh: number;            // %
+  batterySoc: number;            // %
+  batteryTemperature: number;    // °C
+  batteryBackupEstimate: string;
+  generatorStatus: "ligado" | "desligado" | "erro";
+  generatorFuelLevel: number;    // %
+  generatorRuntimeHours: number;
+  mainsStatus: "presente" | "ausente";
+  rectifierStatus: "ok" | "alarme";
+  powerSourceActive: "rede" | "gerador" | "bateria";
+  fuelTheftAlert: boolean;
+  // 5. Ambiente / Shelter
+  humidity: number;              // %
+  doorOpenAlarm: boolean;
+  smokeAlarm: boolean;
+  acStatus: "ligado" | "desligado" | "erro";
+  // 6. Sinal / Rede
+  linkStatus: "up" | "down" | "degraded";
+  bandwidthUtilization: number;  // %
+  // 8. SLA / Manutenção
+  availabilityPercent: number;
+  mttrHours: number;
+  mtbfHours: number;
+  downtimeMinutes: number;
+  plannedMaintMinutes: number;
 };
 
 export type AlarmStatus = "active" | "ack" | "closed";
