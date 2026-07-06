@@ -23,10 +23,10 @@ export function MetricCard({
           {icon}
         </span>
       </div>
-      <div className={`text-3xl font-semibold leading-none tabular-nums ${valueClass ?? "text-foreground"}`}>
+      <div className={`text-3xl font-semibold leading-none tabular-nums ${value === "—" ? "text-muted-foreground" : (valueClass ?? "text-foreground")}`}>
         {value}
       </div>
-      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
+      {sub && <div className="text-xs text-muted-foreground leading-relaxed">{sub}</div>}
     </div>
   );
 }

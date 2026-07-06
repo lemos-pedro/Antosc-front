@@ -37,15 +37,15 @@ export function TorresTable() {
   return (
     <>
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-border">
+        <div className="px-5 pt-4 pb-3 flex items-center justify-between gap-4 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">Torres</h2>
-        <div className="flex gap-1 bg-muted rounded-lg p-1">
+        <div className="flex gap-1 bg-muted rounded-lg p-1 ml-auto">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setFilter(t.id)}
               className={[
-                "px-3 py-1 text-[11px] rounded-md transition-colors",
+                "px-3 py-1 text-[11px] rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-azul-2 outline-none",
                 filter === t.id ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground",
               ].join(" ")}
             >
@@ -83,7 +83,7 @@ export function TorresTable() {
               >
                 <td className="px-5 py-3 font-mono text-xs text-foreground">{t.id}</td>
                 <td className="px-5 py-3 text-foreground">{t.local}</td>
-                <td className="px-5 py-3"><StatusBadge status={t.status} /></td>
+                <td className="px-5 py-3 flex items-center"><StatusBadge status={t.status} /></td>
                 <td className={`px-5 py-3 font-mono text-xs ${t.status === "offline" ? "text-offline/70" : "text-muted-foreground"}`}>
                   {t.ip}
                 </td>

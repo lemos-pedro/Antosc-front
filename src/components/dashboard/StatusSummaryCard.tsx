@@ -95,7 +95,7 @@ export function StatusSummaryCard() {
         {/* Alerts indicator */}
         {activeAlarms.length > 0 && (
           <div className="flex items-center gap-2 p-2 rounded-lg bg-offline-bg/10 border border-offline/20 text-xs text-offline">
-            <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
             <span className="font-medium">{activeAlarms.length} alerta ativo</span>
           </div>
         )}

@@ -25,7 +25,7 @@ export function ScanPill() {
       onClick={scan}
       className="inline-flex items-center gap-2 text-[11px] px-2.5 py-1 rounded-full bg-muted text-muted-foreground hover:bg-azul hover:text-white transition-colors"
     >
-      <RefreshCw className={`h-3 w-3 ${busy ? "animate-spin" : ""}`} />
+      <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
       Última varredura: {txt}
     </button>
   );

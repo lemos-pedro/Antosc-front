@@ -41,7 +41,7 @@ export function AlarmDetailDialog({ alarm, open, onOpenChange }: { alarm: Alarm 
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <div className={`inline-flex items-center gap-2 self-start px-2.5 py-1 rounded-full border text-[11px] font-semibold ${meta.cls}`}>
-            <Icon className="h-3.5 w-3.5" /> {meta.label}
+            <Icon className="h-4 w-4" /> {meta.label}
           </div>
           <DialogTitle className="mt-2">{alarm.title}</DialogTitle>
           <DialogDescription>{meta.desc}</DialogDescription>
@@ -87,14 +87,14 @@ export function AlarmDetailDialog({ alarm, open, onOpenChange }: { alarm: Alarm 
           <button
             onClick={() => { ack(alarm.id); onOpenChange(false); }}
             disabled={alarm.status !== "active"}
-            className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-azul hover:text-white hover:border-azul disabled:opacity-50 transition-colors"
+            className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-azul hover:text-white hover:border-azul disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-azul-2 outline-none"
           >
             Confirmar (Ack)
           </button>
           <button
             onClick={() => { close(alarm.id); onOpenChange(false); }}
             disabled={alarm.status === "closed"}
-            className="px-3 py-1.5 text-xs rounded-md bg-offline text-white hover:bg-offline/90 disabled:opacity-50 transition-colors"
+            className="px-3 py-1.5 text-xs rounded-md bg-offline text-white hover:bg-offline/90 disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-offline/40 outline-none"
           >
             Fechar alarme
           </button>
@@ -116,7 +116,7 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 function Row({ Icon, label }: { Icon: typeof Info; label: string }) {
   return (
     <div className="flex items-center gap-1.5 text-muted-foreground">
-      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <Icon className="h-4 w-4 shrink-0" />
       <span className="truncate">{label}</span>
     </div>
   );
