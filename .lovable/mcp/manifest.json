@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "antosc-mcp",
+      "version": "0.1.0",
+      "title": "ANTOSC — Monitorização de Torres"
+    },
+    "tools": [
+      {
+        "name": "list_towers",
+        "title": "List towers",
+        "description": "List monitored telecom towers with status, operator and region.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "status": {
+              "description": "Filter by tower status.",
+              "type": "string",
+              "enum": [
+                "online",
+                "degraded",
+                "offline"
+              ]
+            },
+            "limit": {
+              "description": "Max rows to return.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_tower",
+        "title": "Get tower details",
+        "description": "Fetch full details for a single tower by its ID.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "tower_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The tower identifier."
+            }
+          },
+          "required": [
+            "tower_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_sla_global",
+        "title": "Global SLA",
+        "description": "Return global availability SLA across all towers over the rolling window.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
