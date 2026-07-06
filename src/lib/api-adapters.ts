@@ -9,8 +9,22 @@ import type {
   EventType,
   TowerStatus,
 } from "@/lib/api";
-import type { Torre as MockTorre } from "@/lib/mock-data";
 
+/**
+ * UiTower
+ *
+ * Campos obrigatórios: cobertos pelo contrato api.md (GET /towers, GET /towers/{id})
+ * ou derivados de referências já disponíveis (regions, operators, metrics).
+ *
+ * Campos opcionais (`?:`): NÃO existem ainda no contrato api.md. Ficam `undefined`
+ * até o backend expor os endpoints/campos correspondentes. NUNCA preencher com
+ * valores gerados artificialmente (rand/seed) — isso mistura dados reais com
+ * fictícios sem qualquer sinalização visual, o que é inaceitável num sistema
+ * de monitorização operacional.
+ *
+ * Quando o backend expuser cada bloco, mover o campo para a secção obrigatória
+ * e ligar a fonte real (latestMetric, novo endpoint, etc.) — ver TODOs abaixo.
+ */
 export type UiTower = {
   id: string;
   nome: string;
@@ -18,7 +32,7 @@ export type UiTower = {
   status: TowerStatus;
   vendor: string;
   disp30d: number;
-  ip: string;
+  ip?: string;
   lat: number;
   lng: number;
   regiao: string;
@@ -27,53 +41,62 @@ export type UiTower = {
   operadorId: string;
   snmpVersion: "v2c" | "v3";
   ultimaManut: string;
-  signalStrength: number;
-  voltage: number;
-  temperatura: number;
-  uptime: string;
-  // 1. Identificação / Localização
-  siteId: string;
-  siteLevel: "Macro" | "Micro";
-  siteCategory: "Urbano" | "Rural";
-  loadWorkLevel: "Alta" | "Média" | "Baixa";
-  endereco: string;
-  electricMeterId: string;
-  // 2. Estado
-  disp7d: number;
-  lastSeenAt: string;
-  updatedAt: string;
-  slaTarget: number;
-  slaStatus: "dentro" | "fora";
-  activeAlarms: number;
-  activeFailures: number;
-  // 3. Energia
-  current: number;               // A
-  batteryVoltage: number;        // V
-  batterySoh: number;            // %
-  batterySoc: number;            // %
-  batteryTemperature: number;    // °C
-  batteryBackupEstimate: string;
-  generatorStatus: "ligado" | "desligado" | "erro";
-  generatorFuelLevel: number;    // %
-  generatorRuntimeHours: number;
-  mainsStatus: "presente" | "ausente";
-  rectifierStatus: "ok" | "alarme";
-  powerSourceActive: "rede" | "gerador" | "bateria";
-  fuelTheftAlert: boolean;
-  // 5. Ambiente / Shelter
-  humidity: number;              // %
-  doorOpenAlarm: boolean;
-  smokeAlarm: boolean;
-  acStatus: "ligado" | "desligado" | "erro";
-  // 6. Sinal / Rede
-  linkStatus: "up" | "down" | "degraded";
-  bandwidthUtilization: number;  // %
-  // 8. SLA / Manutenção
-  availabilityPercent: number;
-  mttrHours: number;
-  mtbfHours: number;
-  downtimeMinutes: number;
-  plannedMaintMinutes: number;
+  signalStrength?: number;
+  voltage?: number;
+  temperatura?: number;
+  uptime?: string;
+
+  // --- Abaixo: sem cobertura em api.md hoje. Todos opcionais. ---
+
+  // 1. Identificação / Localização — pendente: sem endpoint/campo dedicado
+  siteId?: string;
+  siteLevel?: "Macro" | "Micro";
+  siteCategory?: "Urbano" | "Rural";
+  loadWorkLevel?: "Alta" | "Média" | "Baixa";
+  endereco?: string;
+  electricMeterId?: string;
+
+  // 2. Estado — pendente: GET /sla/global e GET /towers/{id}/events cobrem parte disto
+  disp7d?: number;
+  lastSeenAt?: string;
+  updatedAt: string; // já vem de tower.updated_at, mantido obrigatório
+  slaTarget?: number; // pendente: GET /sla/global não devolve alvo por torre
+  slaStatus?: "dentro" | "fora";
+  activeAlarms?: number; // pendente: agregação de GET /towers/{id}/events
+  activeFailures?: number;
+
+  // 3. Energia — pendente: nenhum destes campos existe em /metrics hoje
+  current?: number;
+  batteryVoltage?: number;
+  batterySoh?: number;
+  batterySoc?: number;
+  batteryTemperature?: number;
+  batteryBackupEstimate?: string;
+  generatorStatus?: "ligado" | "desligado" | "erro";
+  generatorFuelLevel?: number;
+  generatorRuntimeHours?: number;
+  mainsStatus?: "presente" | "ausente";
+  rectifierStatus?: "ok" | "alarme";
+  powerSourceActive?: "rede" | "gerador" | "bateria";
+  fuelTheftAlert?: boolean;
+
+  // 5. Ambiente / Shelter — pendente: sem sensores mapeados no contrato
+  humidity?: number;
+  doorOpenAlarm?: boolean;
+  smokeAlarm?: boolean;
+  acStatus?: "ligado" | "desligado" | "erro";
+
+  // 6. Sinal / Rede — pendente: sem campo dedicado além de signal_strength
+  linkStatus?: "up" | "down" | "degraded";
+  bandwidthUtilization?: number;
+
+  // 8. SLA / Manutenção — pendente: GET /sla/global só devolve agregado global,
+  // não por torre; MTTR/MTBF não estão em nenhum endpoint ainda
+  availabilityPercent?: number; // duplicava disp30d; manter opcional só se vier de outra fonte
+  mttrHours?: number;
+  mtbfHours?: number;
+  downtimeMinutes?: number;
+  plannedMaintMinutes?: number;
 };
 
 export type AlarmStatus = "active" | "ack" | "closed";
@@ -135,26 +158,26 @@ export function errorMessage(error: unknown) {
   return "Não foi possível carregar dados da API.";
 }
 
+/**
+ * Mapeia ApiTower (+ referências reais já carregadas) para UiTower.
+ *
+ * Importante: nenhum campo é inventado. Se o dado não vier da API, o campo
+ * fica undefined e a UI é responsável por mostrar um estado "sem dados"
+ * explícito (ex.: "—", ícone de indisponível), nunca um valor plausível.
+ */
 export function toUiTower(
   tower: ApiTower,
-  refs: { regions?: ApiRegion[]; operators?: ApiOperator[]; latestMetric?: ApiMetric } = {},
+  refs: {
+    regions?: ApiRegion[];
+    operators?: ApiOperator[];
+    latestMetric?: ApiMetric;
+  } = {},
 ): UiTower {
   const region = refs.regions?.find((r) => r.region_id === tower.region_id);
   const operator = refs.operators?.find((o) => o.operator_id === tower.operator_id);
   const regionName = region?.name ?? tower.region_id;
   const [lat, lng] = readCoords(tower, region, regionName);
   const latestMetric = refs.latestMetric;
-
-  const status = tower.status;
-  const disp30d = tower.availability_30d;
-  const seed = tower.tower_id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const rand = (min: number, max: number, offset = 0) => {
-    const v = ((seed * 9301 + 49297 + offset * 131) % 233280) / 233280;
-    return +(min + v * (max - min)).toFixed(1);
-  };
-  const online = status === "online";
-  const degraded = status === "degraded";
-  const offline = status === "offline";
 
   return {
     id: tower.tower_id,
@@ -163,7 +186,7 @@ export function toUiTower(
     status: tower.status,
     vendor: tower.vendor,
     disp30d: tower.availability_30d,
-    ip: tower.snmp_target || "—",
+    ip: tower.snmp_target || undefined,
     lat,
     lng,
     regiao: regionName,
@@ -172,47 +195,61 @@ export function toUiTower(
     operadorId: tower.operator_id,
     snmpVersion: tower.snmp_version,
     ultimaManut: formatDate(tower.updated_at),
-    signalStrength: readNumber(latestMetric, ["signal_strength", "rssi"]) ?? readNumber(tower, ["signal_strength", "rssi"]) ?? 0,
-    voltage: readNumber(latestMetric, ["voltage"]) ?? readNumber(tower, ["voltage"]) ?? 0,
-    temperatura: readNumber(latestMetric, ["temperature", "temperatura"]) ?? readNumber(tower, ["temperature", "temperatura"]) ?? 0,
-    uptime: readString(latestMetric, ["uptime"]) ?? readString(tower, ["uptime"]) ?? "—",
-    siteId: readString(tower, ["site_id"]) ?? `SITE-${tower.tower_id}`,
-    siteLevel: (readString(tower, ["site_level"]) as "Macro" | "Micro") ?? "Macro",
-    siteCategory: (readString(tower, ["site_category"]) as "Urbano" | "Rural") ?? (rand(0, 1, 1) > 0.5 ? "Urbano" : "Rural"),
-    loadWorkLevel: (readString(tower, ["load_work_level"]) as "Alta" | "Média" | "Baixa") ?? "Média",
-    endereco: readString(tower, ["endereco", "address"]) ?? `${regionName}, Angola`,
-    electricMeterId: readString(tower, ["electric_meter_id"]) ?? `EM-${tower.tower_id.slice(-4)}`,
-    disp7d: +(disp30d - rand(0, 0.5, 2)).toFixed(2),
-    lastSeenAt: offline ? formatDate(tower.updated_at) : new Date().toISOString(),
     updatedAt: tower.updated_at,
-    slaTarget: 99.9,
-    slaStatus: disp30d >= 99.9 ? "dentro" : "fora",
-    activeAlarms: offline ? 3 : degraded ? 1 : 0,
-    activeFailures: offline ? 2 : 0,
-    current: offline ? 0 : rand(8, 22, 3),
-    batteryVoltage: offline ? 0 : rand(50, 54, 4),
-    batterySoh: offline ? rand(60, 80, 5) : rand(85, 99, 5),
-    batterySoc: offline ? rand(20, 40, 6) : rand(75, 100, 6),
-    batteryTemperature: rand(25, 40, 7),
-    batteryBackupEstimate: offline ? "2h 10m" : `${Math.floor(rand(4, 10, 8))}h ${Math.floor(rand(0, 59, 9))}m`,
-    generatorStatus: offline ? "ligado" : degraded ? "erro" : "desligado",
-    generatorFuelLevel: rand(20, 90, 10),
-    generatorRuntimeHours: Math.floor(rand(100, 3000, 11)),
-    mainsStatus: offline ? "ausente" : "presente",
-    rectifierStatus: online ? "ok" : "alarme",
-    powerSourceActive: offline ? "gerador" : "rede",
-    fuelTheftAlert: degraded && rand(0, 1, 12) > 0.7,
-    humidity: rand(40, 75, 13),
-    doorOpenAlarm: false,
-    smokeAlarm: false,
-    acStatus: offline ? "desligado" : online ? "ligado" : "erro",
-    linkStatus: online ? "up" : degraded ? "degraded" : "down",
-    bandwidthUtilization: offline ? 0 : rand(20, 85, 14),
-    availabilityPercent: disp30d,
-    mttrHours: +rand(1.5, 4.5, 15).toFixed(1),
-    mtbfHours: Math.floor(rand(400, 900, 16)),
-    downtimeMinutes: Math.floor((100 - disp30d) * 60 * 24 * 30 / 100),
-    plannedMaintMinutes: Math.floor(rand(60, 240, 17)),
+    signalStrength:
+      readNumber(latestMetric, ["signal_strength", "rssi"]) ??
+      readNumber(tower, ["signal_strength", "rssi"]),
+    voltage: readNumber(latestMetric, ["voltage"]) ?? readNumber(tower, ["voltage"]),
+    temperatura:
+      readNumber(latestMetric, ["temperature", "temperatura"]) ??
+      readNumber(tower, ["temperature", "temperatura"]),
+    uptime: readString(latestMetric, ["uptime"]) ?? readString(tower, ["uptime"]),
+
+    // Campos abaixo só são preenchidos SE existir dado real em `tower`/`latestMetric`.
+    // Hoje o contrato api.md não os define, portanto ficam undefined na prática —
+    // deixados aqui via readString/readNumber para o dia em que o backend
+    // começar a devolvê-los (basta passar a existir na resposta da API).
+    siteId: readString(tower, ["site_id"]),
+    siteLevel: readString(tower, ["site_level"]) as UiTower["siteLevel"],
+    siteCategory: readString(tower, ["site_category"]) as UiTower["siteCategory"],
+    loadWorkLevel: readString(tower, ["load_work_level"]) as UiTower["loadWorkLevel"],
+    endereco: readString(tower, ["endereco", "address"]),
+    electricMeterId: readString(tower, ["electric_meter_id"]),
+
+    disp7d: readNumber(tower, ["disp7d", "availability_7d"]),
+    lastSeenAt: readString(tower, ["last_seen_at"]),
+    slaTarget: readNumber(tower, ["sla_target"]),
+    slaStatus: readString(tower, ["sla_status"]) as UiTower["slaStatus"],
+    activeAlarms: readNumber(tower, ["active_alarms"]),
+    activeFailures: readNumber(tower, ["active_failures"]),
+
+    current: readNumber(latestMetric, ["current"]),
+    batteryVoltage: readNumber(latestMetric, ["battery_voltage"]),
+    batterySoh: readNumber(latestMetric, ["battery_soh"]),
+    batterySoc: readNumber(latestMetric, ["battery_soc"]),
+    batteryTemperature: readNumber(latestMetric, ["battery_temperature"]),
+    batteryBackupEstimate: readString(latestMetric, ["battery_backup_estimate"]),
+    generatorStatus: readString(latestMetric, ["generator_status"]) as UiTower["generatorStatus"],
+    generatorFuelLevel: readNumber(latestMetric, ["generator_fuel_level"]),
+    generatorRuntimeHours: readNumber(latestMetric, ["generator_runtime_hours"]),
+    mainsStatus: readString(latestMetric, ["mains_status"]) as UiTower["mainsStatus"],
+    rectifierStatus: readString(latestMetric, ["rectifier_status"]) as UiTower["rectifierStatus"],
+    powerSourceActive: readString(latestMetric, ["power_source_active"]) as UiTower["powerSourceActive"],
+    fuelTheftAlert: readBoolean(latestMetric, ["fuel_theft_alert"]),
+
+    humidity: readNumber(latestMetric, ["humidity"]),
+    doorOpenAlarm: readBoolean(latestMetric, ["door_open_alarm"]),
+    smokeAlarm: readBoolean(latestMetric, ["smoke_alarm"]),
+    acStatus: readString(latestMetric, ["ac_status"]) as UiTower["acStatus"],
+
+    linkStatus: readString(latestMetric, ["link_status"]) as UiTower["linkStatus"],
+    bandwidthUtilization: readNumber(latestMetric, ["bandwidth_utilization"]),
+
+    availabilityPercent: tower.availability_30d,
+    mttrHours: readNumber(tower, ["mttr_hours"]),
+    mtbfHours: readNumber(tower, ["mtbf_hours"]),
+    downtimeMinutes: readNumber(tower, ["downtime_minutes"]),
+    plannedMaintMinutes: readNumber(tower, ["planned_maint_minutes"]),
   };
 }
 
@@ -322,42 +359,19 @@ function readNumber(source: unknown, keys: string[]) {
   return undefined;
 }
 
+function readBoolean(source: unknown, keys: string[]) {
+  if (!source || typeof source !== "object") return undefined;
+  const record = source as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "boolean") return value;
+  }
+  return undefined;
+}
+
 function normalize(value: string) {
   return value
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
-}
-
-// Fallback: converte um mock local (src/lib/mock-data) em UiTower enriquecido
-// para quando a API não estiver acessível.
-export function mockToUiTower(t: MockTorre): UiTower {
-  const fakeApi: ApiTower = {
-    tower_id: t.id,
-    name: t.nome,
-    status: t.status,
-    operator_id: t.operador,
-    region_id: t.regiao,
-    vendor: t.vendor,
-    snmp_enabled: true,
-    snmp_version: t.snmpVersion,
-    snmp_target: t.ip,
-    availability_30d: t.disp30d,
-    updated_at: t.ultimaManut,
-    created_at: t.ultimaManut,
-  };
-  const ui = toUiTower(fakeApi);
-  return {
-    ...ui,
-    local: t.local,
-    lat: t.lat,
-    lng: t.lng,
-    regiao: t.regiao,
-    operador: t.operador,
-    signalStrength: t.signalStrength,
-    voltage: t.voltage,
-    temperatura: t.temperatura,
-    uptime: t.uptime,
-    endereco: `${t.local}, ${t.regiao}, Angola`,
-  };
 }

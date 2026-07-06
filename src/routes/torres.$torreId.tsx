@@ -7,8 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { api, type AlarmSeverity, type EventType } from "@/lib/api";
-import { queryKeys, toEvent, toUiTower, mockToUiTower } from "@/lib/api-adapters";
-import { torres as mockTorres } from "@/lib/mock-data";
+import { errorMessage, queryKeys, toEvent, toUiTower } from "@/lib/api-adapters";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { useAlarms } from "@/lib/alarms-store";
@@ -58,6 +57,38 @@ const estadoColor: Record<ManutEstado, string> = {
   Concluída: "bg-online-bg text-online",
 };
 
+// --- Helpers de apresentação segura (sem inventar valores) ---
+// Todos os campos opcionais do UiTower passam por aqui antes de ir para o
+// ecrã: se não houver dado real, mostra "—" em vez de rebentar (undefined
+// .toFixed()) ou de mostrar um zero enganoso.
+const NO_DATA = "—";
+
+function fmtNum(value: number | undefined, decimals = 1, unit = ""): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return NO_DATA;
+  return `${value.toFixed(decimals)}${unit}`;
+}
+
+function fmtInt(value: number | undefined, unit = ""): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return NO_DATA;
+  return `${Math.round(value)}${unit}`;
+}
+
+function fmtStr(value: string | undefined | null): string {
+  return value && value.trim() ? value : NO_DATA;
+}
+
+function fmtBool(value: boolean | undefined, yes = "Sim", no = "Não"): string {
+  if (value === undefined) return NO_DATA;
+  return value ? yes : no;
+}
+
+function fmtDateTime(value: string | undefined): string {
+  if (!value) return NO_DATA;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return NO_DATA;
+  return d.toLocaleString("pt-PT");
+}
+
 function TorreDetailPage() {
   const { torreId } = Route.useParams();
   const navigate = useNavigate();
@@ -83,13 +114,9 @@ function TorreDetailPage() {
     queryFn: () => api.listTowerEvents(torreId, { limit: 100 }),
   });
   const latestMetric = metricsQuery.data?.data[0];
-  const mockFallback = mockTorres.find((t) => t.id === torreId);
   const torre = towerQuery.data
     ? toUiTower(towerQuery.data, { regions: regionsQuery.data?.data, operators: operatorsQuery.data?.data, latestMetric })
-    : mockFallback
-      ? mockToUiTower(mockFallback)
-      : null;
-  const usingFallback = !towerQuery.data && !!mockFallback;
+    : null;
   const torreAlarms = alarms.filter((a) => a.torre === torreId);
   const torreEquip = torre
     ? [{ id: `${torre.id}-snmp`, tipo: "SNMP Target", torre: torre.id, vendor: torre.vendor, ip: torre.ip, status: torre.status, ultimaManut: torre.ultimaManut }]
@@ -126,17 +153,20 @@ function TorreDetailPage() {
   const [dlgOpen, setDlgOpen] = useState(false);
   const operatorOptions = operatorsQuery.data?.data ?? [];
 
-  if (towerQuery.isLoading && !mockFallback) {
+  if (towerQuery.isLoading) {
     return <div className="bg-card border border-border rounded-xl p-8 text-sm text-muted-foreground">A carregar torre...</div>;
   }
 
-  if (!torre) {
+  if (towerQuery.isError || !torre) {
     return (
       <div className="bg-card border border-border rounded-xl p-8 text-sm text-offline">
-        Torre {torreId} não encontrada.
+        {errorMessage(towerQuery.error)}
       </div>
     );
   }
+
+  const activeAlarmsTotal = active.filter((a) => a.torre === torre.id).length + (torre.activeAlarms ?? 0);
+  const slaKnown = torre.slaStatus !== undefined;
 
   return (
     <div className="space-y-4">
@@ -153,7 +183,7 @@ function TorreDetailPage() {
               <StatusBadge status={torre.status} />
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              {torre.local} · {torre.regiao} · <span className="font-mono">{torre.ip}</span> · {torre.operador} · SNMP {torre.snmpVersion}
+              {torre.local} · {torre.regiao} · <span className="font-mono">{fmtStr(torre.ip)}</span> · {torre.operador} · SNMP {torre.snmpVersion}
             </p>
           </div>
           <div className="text-right">
@@ -173,18 +203,17 @@ function TorreDetailPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 mt-4">
-          {usingFallback && (
-            <div className="bg-degraded-bg border border-degraded/30 rounded-md px-4 py-2 text-xs text-degraded">
-              API offline — a mostrar dados de demonstração para esta torre.
-            </div>
-          )}
-
           {/* Estado operacional — cards de topo */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard icon={<ShieldCheck className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="Disp. 30d" value={`${torre.disp30d.toFixed(2)}%`} />
-            <MetricCard icon={<TrendingUp className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Disp. 7d" value={`${torre.disp7d.toFixed(2)}%`} />
-            <MetricCard icon={<ShieldCheck className={`h-[18px] w-[18px] ${torre.slaStatus === "dentro" ? "text-online" : "text-offline"}`} />} iconBg={torre.slaStatus === "dentro" ? "#DCFCE7" : "#FEE2E2"} label={`SLA (alvo ${torre.slaTarget}%)`} value={torre.slaStatus === "dentro" ? "Dentro" : "Fora"} />
-            <MetricCard icon={<BellRing className="h-[18px] w-[18px] text-offline" />} iconBg="#FEE2E2" label="Alarmes activos" value={active.filter((a) => a.torre === torre.id).length + torre.activeAlarms} />
+            <MetricCard icon={<TrendingUp className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Disp. 7d" value={fmtNum(torre.disp7d, 2, "%")} />
+            <MetricCard
+              icon={<ShieldCheck className={`h-[18px] w-[18px] ${slaKnown ? (torre.slaStatus === "dentro" ? "text-online" : "text-offline") : "text-muted-foreground"}`} />}
+              iconBg={slaKnown ? (torre.slaStatus === "dentro" ? "#DCFCE7" : "#FEE2E2") : "#F1F5F9"}
+              label={torre.slaTarget !== undefined ? `SLA (alvo ${torre.slaTarget}%)` : "SLA"}
+              value={slaKnown ? (torre.slaStatus === "dentro" ? "Dentro" : "Fora") : NO_DATA}
+            />
+            <MetricCard icon={<BellRing className="h-[18px] w-[18px] text-offline" />} iconBg="#FEE2E2" label="Alarmes activos" value={activeAlarmsTotal} />
           </div>
 
           {/* 1. Identificação & Localização */}
@@ -194,15 +223,15 @@ function TorreDetailPage() {
               <dl className="text-xs grid grid-cols-2 gap-y-2">
                 <dt className="text-muted-foreground">Nome</dt><dd className="text-foreground">{torre.nome}</dd>
                 <dt className="text-muted-foreground">Tower ID</dt><dd className="font-mono text-foreground">{torre.id}</dd>
-                <dt className="text-muted-foreground">Site ID</dt><dd className="font-mono text-foreground">{torre.siteId}</dd>
-                <dt className="text-muted-foreground">Site level</dt><dd className="text-foreground">{torre.siteLevel}</dd>
-                <dt className="text-muted-foreground">Categoria</dt><dd className="text-foreground">{torre.siteCategory}</dd>
-                <dt className="text-muted-foreground">Load work level</dt><dd className="text-foreground">{torre.loadWorkLevel}</dd>
+                <dt className="text-muted-foreground">Site ID</dt><dd className="font-mono text-foreground">{fmtStr(torre.siteId)}</dd>
+                <dt className="text-muted-foreground">Site level</dt><dd className="text-foreground">{fmtStr(torre.siteLevel)}</dd>
+                <dt className="text-muted-foreground">Categoria</dt><dd className="text-foreground">{fmtStr(torre.siteCategory)}</dd>
+                <dt className="text-muted-foreground">Load work level</dt><dd className="text-foreground">{fmtStr(torre.loadWorkLevel)}</dd>
                 <dt className="text-muted-foreground">Operador</dt><dd className="text-foreground">{torre.operador}</dd>
                 <dt className="text-muted-foreground">Região</dt><dd className="text-foreground">{torre.regiao}</dd>
-                <dt className="text-muted-foreground">Endereço</dt><dd className="text-foreground">{torre.endereco}</dd>
+                <dt className="text-muted-foreground">Endereço</dt><dd className="text-foreground">{fmtStr(torre.endereco)}</dd>
                 <dt className="text-muted-foreground">Coordenadas</dt><dd className="font-mono text-foreground">{torre.lat.toFixed(4)}, {torre.lng.toFixed(4)}</dd>
-                <dt className="text-muted-foreground">Contador eléctrico</dt><dd className="font-mono text-foreground">{torre.electricMeterId}</dd>
+                <dt className="text-muted-foreground">Contador eléctrico</dt><dd className="font-mono text-foreground">{fmtStr(torre.electricMeterId)}</dd>
               </dl>
             </div>
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
@@ -210,14 +239,14 @@ function TorreDetailPage() {
               <dl className="text-xs grid grid-cols-2 gap-y-2">
                 <dt className="text-muted-foreground">Estado</dt><dd><StatusBadge status={torre.status} /></dd>
                 <dt className="text-muted-foreground">Disp. 30d</dt><dd className="font-mono text-foreground">{torre.disp30d.toFixed(2)}%</dd>
-                <dt className="text-muted-foreground">Disp. 7d</dt><dd className="font-mono text-foreground">{torre.disp7d.toFixed(2)}%</dd>
-                <dt className="text-muted-foreground">Último contacto</dt><dd className="font-mono text-foreground">{new Date(torre.lastSeenAt).toLocaleString("pt-PT")}</dd>
-                <dt className="text-muted-foreground">Actualizado em</dt><dd className="font-mono text-foreground">{torre.updatedAt}</dd>
-                <dt className="text-muted-foreground">SLA alvo</dt><dd className="text-foreground">{torre.slaTarget}%</dd>
-                <dt className="text-muted-foreground">SLA status</dt><dd className={torre.slaStatus === "dentro" ? "text-online" : "text-offline"}>{torre.slaStatus === "dentro" ? "Dentro" : "Fora"}</dd>
-                <dt className="text-muted-foreground">Alarmes activos</dt><dd className="text-foreground">{torre.activeAlarms}</dd>
-                <dt className="text-muted-foreground">Falhas activas</dt><dd className="text-foreground">{torre.activeFailures}</dd>
-                <dt className="text-muted-foreground">Uptime</dt><dd className="font-mono text-foreground">{torre.uptime}</dd>
+                <dt className="text-muted-foreground">Disp. 7d</dt><dd className="font-mono text-foreground">{fmtNum(torre.disp7d, 2, "%")}</dd>
+                <dt className="text-muted-foreground">Último contacto</dt><dd className="font-mono text-foreground">{fmtDateTime(torre.lastSeenAt)}</dd>
+                <dt className="text-muted-foreground">Actualizado em</dt><dd className="font-mono text-foreground">{fmtDateTime(torre.updatedAt)}</dd>
+                <dt className="text-muted-foreground">SLA alvo</dt><dd className="text-foreground">{torre.slaTarget !== undefined ? `${torre.slaTarget}%` : NO_DATA}</dd>
+                <dt className="text-muted-foreground">SLA status</dt><dd className={slaKnown ? (torre.slaStatus === "dentro" ? "text-online" : "text-offline") : "text-muted-foreground"}>{slaKnown ? (torre.slaStatus === "dentro" ? "Dentro" : "Fora") : NO_DATA}</dd>
+                <dt className="text-muted-foreground">Alarmes activos</dt><dd className="text-foreground">{torre.activeAlarms ?? NO_DATA}</dd>
+                <dt className="text-muted-foreground">Falhas activas</dt><dd className="text-foreground">{torre.activeFailures ?? NO_DATA}</dd>
+                <dt className="text-muted-foreground">Uptime</dt><dd className="font-mono text-foreground">{fmtStr(torre.uptime)}</dd>
               </dl>
             </div>
           </div>
@@ -226,23 +255,23 @@ function TorreDetailPage() {
           <div className="bg-card border border-border rounded-xl p-5 space-y-4">
             <h3 className="text-sm font-semibold flex items-center gap-2"><Zap className="h-4 w-4 text-degraded" /> Energia</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricCard icon={<Zap className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="Tensão AC" value={`${torre.voltage.toFixed(1)} V`} />
-              <MetricCard icon={<Gauge className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Corrente" value={`${torre.current.toFixed(1)} A`} />
-              <MetricCard icon={<Battery className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="Bateria SoC" value={`${torre.batterySoc.toFixed(0)}%`} />
-              <MetricCard icon={<Battery className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Bateria SoH" value={`${torre.batterySoh.toFixed(0)}%`} />
+              <MetricCard icon={<Zap className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="Tensão AC" value={fmtNum(torre.voltage, 1, " V")} />
+              <MetricCard icon={<Gauge className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Corrente" value={fmtNum(torre.current, 1, " A")} />
+              <MetricCard icon={<Battery className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="Bateria SoC" value={fmtInt(torre.batterySoc, "%")} />
+              <MetricCard icon={<Battery className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Bateria SoH" value={fmtInt(torre.batterySoh, "%")} />
             </div>
             <dl className="text-xs grid grid-cols-2 md:grid-cols-3 gap-y-2 pt-3 border-t border-border">
-              <dt className="text-muted-foreground">Tensão bateria</dt><dd className="font-mono text-foreground">{torre.batteryVoltage.toFixed(1)} V</dd>
-              <dt className="text-muted-foreground">Temp. bateria</dt><dd className="font-mono text-foreground">{torre.batteryTemperature.toFixed(1)} °C</dd>
-              <dt className="text-muted-foreground">Backup estimado</dt><dd className="font-mono text-foreground">{torre.batteryBackupEstimate}</dd>
-              <dt className="text-muted-foreground">Rede eléctrica</dt><dd className={torre.mainsStatus === "presente" ? "text-online" : "text-offline"}>{torre.mainsStatus}</dd>
-              <dt className="text-muted-foreground">Rectificador</dt><dd className={torre.rectifierStatus === "ok" ? "text-online" : "text-offline"}>{torre.rectifierStatus === "ok" ? "OK" : "Alarme"}</dd>
-              <dt className="text-muted-foreground">Fonte activa</dt><dd className="text-foreground capitalize">{torre.powerSourceActive}</dd>
-              <dt className="text-muted-foreground">Gerador</dt><dd className={torre.generatorStatus === "ligado" ? "text-degraded" : torre.generatorStatus === "erro" ? "text-offline" : "text-muted-foreground"}>{torre.generatorStatus}</dd>
-              <dt className="text-muted-foreground flex items-center gap-1"><Fuel className="h-3 w-3" /> Combustível</dt><dd className="font-mono text-foreground">{torre.generatorFuelLevel.toFixed(0)}%</dd>
-              <dt className="text-muted-foreground">Runtime gerador</dt><dd className="font-mono text-foreground">{torre.generatorRuntimeHours} h</dd>
+              <dt className="text-muted-foreground">Tensão bateria</dt><dd className="font-mono text-foreground">{fmtNum(torre.batteryVoltage, 1, " V")}</dd>
+              <dt className="text-muted-foreground">Temp. bateria</dt><dd className="font-mono text-foreground">{fmtNum(torre.batteryTemperature, 1, " °C")}</dd>
+              <dt className="text-muted-foreground">Backup estimado</dt><dd className="font-mono text-foreground">{fmtStr(torre.batteryBackupEstimate)}</dd>
+              <dt className="text-muted-foreground">Rede eléctrica</dt><dd className={torre.mainsStatus === "presente" ? "text-online" : torre.mainsStatus === "ausente" ? "text-offline" : "text-muted-foreground"}>{fmtStr(torre.mainsStatus)}</dd>
+              <dt className="text-muted-foreground">Rectificador</dt><dd className={torre.rectifierStatus === "ok" ? "text-online" : torre.rectifierStatus === "alarme" ? "text-offline" : "text-muted-foreground"}>{torre.rectifierStatus === "ok" ? "OK" : torre.rectifierStatus === "alarme" ? "Alarme" : NO_DATA}</dd>
+              <dt className="text-muted-foreground">Fonte activa</dt><dd className="text-foreground capitalize">{fmtStr(torre.powerSourceActive)}</dd>
+              <dt className="text-muted-foreground">Gerador</dt><dd className={torre.generatorStatus === "ligado" ? "text-degraded" : torre.generatorStatus === "erro" ? "text-offline" : "text-muted-foreground"}>{fmtStr(torre.generatorStatus)}</dd>
+              <dt className="text-muted-foreground flex items-center gap-1"><Fuel className="h-3 w-3" /> Combustível</dt><dd className="font-mono text-foreground">{fmtInt(torre.generatorFuelLevel, "%")}</dd>
+              <dt className="text-muted-foreground">Runtime gerador</dt><dd className="font-mono text-foreground">{fmtInt(torre.generatorRuntimeHours, " h")}</dd>
             </dl>
-            {torre.fuelTheftAlert && (
+            {torre.fuelTheftAlert === true && (
               <div className="bg-offline-bg text-offline text-xs px-3 py-2 rounded-md flex items-center gap-2">
                 <AlertOctagon className="h-3 w-3" /> Alerta: possível furto de combustível (correlação multi-fonte).
               </div>
@@ -254,22 +283,22 @@ function TorreDetailPage() {
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2"><Thermometer className="h-4 w-4 text-offline" /> Ambiente / Shelter</h3>
               <dl className="text-xs grid grid-cols-2 gap-y-2">
-                <dt className="text-muted-foreground flex items-center gap-1"><Thermometer className="h-3 w-3" /> Temperatura</dt><dd className="font-mono text-foreground">{torre.temperatura} °C</dd>
-                <dt className="text-muted-foreground flex items-center gap-1"><Droplets className="h-3 w-3" /> Humidade</dt><dd className="font-mono text-foreground">{torre.humidity.toFixed(0)}%</dd>
-                <dt className="text-muted-foreground flex items-center gap-1"><DoorOpen className="h-3 w-3" /> Porta aberta</dt><dd className={torre.doorOpenAlarm ? "text-offline" : "text-online"}>{torre.doorOpenAlarm ? "Sim" : "Não"}</dd>
-                <dt className="text-muted-foreground flex items-center gap-1"><Flame className="h-3 w-3" /> Alarme fumo</dt><dd className={torre.smokeAlarm ? "text-offline" : "text-online"}>{torre.smokeAlarm ? "Sim" : "Não"}</dd>
-                <dt className="text-muted-foreground flex items-center gap-1"><Snowflake className="h-3 w-3" /> Ar condicionado</dt><dd className="text-foreground capitalize">{torre.acStatus}</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><Thermometer className="h-3 w-3" /> Temperatura</dt><dd className="font-mono text-foreground">{torre.temperatura !== undefined ? `${torre.temperatura} °C` : NO_DATA}</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><Droplets className="h-3 w-3" /> Humidade</dt><dd className="font-mono text-foreground">{fmtInt(torre.humidity, "%")}</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><DoorOpen className="h-3 w-3" /> Porta aberta</dt><dd className={torre.doorOpenAlarm === true ? "text-offline" : torre.doorOpenAlarm === false ? "text-online" : "text-muted-foreground"}>{fmtBool(torre.doorOpenAlarm)}</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><Flame className="h-3 w-3" /> Alarme fumo</dt><dd className={torre.smokeAlarm === true ? "text-offline" : torre.smokeAlarm === false ? "text-online" : "text-muted-foreground"}>{fmtBool(torre.smokeAlarm)}</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><Snowflake className="h-3 w-3" /> Ar condicionado</dt><dd className="text-foreground capitalize">{fmtStr(torre.acStatus)}</dd>
               </dl>
             </div>
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2"><Signal className="h-4 w-4 text-azul-2" /> Sinal & rede</h3>
               <dl className="text-xs grid grid-cols-2 gap-y-2">
-                <dt className="text-muted-foreground flex items-center gap-1"><Wifi className="h-3 w-3" /> RSSI</dt><dd className="font-mono text-foreground">{torre.signalStrength} dBm</dd>
-                <dt className="text-muted-foreground">Link status</dt><dd className={torre.linkStatus === "up" ? "text-online" : torre.linkStatus === "degraded" ? "text-degraded" : "text-offline"}>{torre.linkStatus}</dd>
-                <dt className="text-muted-foreground">Utilização BW</dt><dd className="font-mono text-foreground">{torre.bandwidthUtilization.toFixed(0)}%</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><Wifi className="h-3 w-3" /> RSSI</dt><dd className="font-mono text-foreground">{torre.signalStrength !== undefined ? `${torre.signalStrength} dBm` : NO_DATA}</dd>
+                <dt className="text-muted-foreground">Link status</dt><dd className={torre.linkStatus === "up" ? "text-online" : torre.linkStatus === "degraded" ? "text-degraded" : torre.linkStatus === "down" ? "text-offline" : "text-muted-foreground"}>{fmtStr(torre.linkStatus)}</dd>
+                <dt className="text-muted-foreground">Utilização BW</dt><dd className="font-mono text-foreground">{fmtInt(torre.bandwidthUtilization, "%")}</dd>
                 <dt className="text-muted-foreground">Vendor</dt><dd className="text-foreground">{torre.vendor}</dd>
                 <dt className="text-muted-foreground">SNMP</dt><dd className="text-foreground">{torre.snmpVersion}</dd>
-                <dt className="text-muted-foreground">IP alvo</dt><dd className="font-mono text-foreground">{torre.ip}</dd>
+                <dt className="text-muted-foreground">IP alvo</dt><dd className="font-mono text-foreground">{fmtStr(torre.ip)}</dd>
               </dl>
             </div>
           </div>
@@ -278,15 +307,15 @@ function TorreDetailPage() {
           <div className="bg-card border border-border rounded-xl p-5 space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2"><Timer className="h-4 w-4 text-azul-2" /> SLA & métricas de manutenção</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MetricCard icon={<ShieldCheck className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="SLA alvo" value={`${torre.slaTarget}%`} />
-              <MetricCard icon={<ShieldCheck className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Realizado" value={`${torre.availabilityPercent.toFixed(2)}%`} />
-              <MetricCard icon={<Timer className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="MTTR" value={`${torre.mttrHours} h`} />
-              <MetricCard icon={<Timer className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="MTBF" value={`${torre.mtbfHours} h`} />
+              <MetricCard icon={<ShieldCheck className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="SLA alvo" value={torre.slaTarget !== undefined ? `${torre.slaTarget}%` : NO_DATA} />
+              <MetricCard icon={<ShieldCheck className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Realizado" value={fmtNum(torre.availabilityPercent, 2, "%")} />
+              <MetricCard icon={<Timer className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="MTTR" value={fmtInt(torre.mttrHours, " h")} />
+              <MetricCard icon={<Timer className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="MTBF" value={fmtInt(torre.mtbfHours, " h")} />
               <MetricCard icon={<CalendarCheck className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Última manut." value={torre.ultimaManut} />
             </div>
             <dl className="text-xs grid grid-cols-2 gap-y-2 pt-3 border-t border-border">
-              <dt className="text-muted-foreground">Downtime no período</dt><dd className="font-mono text-foreground">{torre.downtimeMinutes} min</dd>
-              <dt className="text-muted-foreground">Manut. planeada (excl.)</dt><dd className="font-mono text-foreground">{torre.plannedMaintMinutes} min</dd>
+              <dt className="text-muted-foreground">Downtime no período</dt><dd className="font-mono text-foreground">{fmtInt(torre.downtimeMinutes, " min")}</dd>
+              <dt className="text-muted-foreground">Manut. planeada (excl.)</dt><dd className="font-mono text-foreground">{fmtInt(torre.plannedMaintMinutes, " min")}</dd>
             </dl>
             <div className="pt-2 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
               <Radio className="h-3 w-3" /> Coleta SNMP activa
@@ -334,7 +363,7 @@ function TorreDetailPage() {
                   <tr key={e.id} className="border-t border-border">
                     <td className="px-5 py-3">{e.tipo}</td>
                     <td className="px-5 py-3 text-muted-foreground">{e.vendor}</td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{e.ip}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{fmtStr(e.ip)}</td>
                     <td className="px-5 py-3"><StatusBadge status={e.status} /></td>
                   </tr>
                 ))}
