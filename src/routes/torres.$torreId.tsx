@@ -173,39 +173,139 @@ function TorreDetailPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 mt-4">
+          {usingFallback && (
+            <div className="bg-degraded-bg border border-degraded/30 rounded-md px-4 py-2 text-xs text-degraded">
+              API offline — a mostrar dados de demonstração para esta torre.
+            </div>
+          )}
+
+          {/* Estado operacional — cards de topo */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard icon={<ShieldCheck className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="Disp. 30d" value={`${torre.disp30d.toFixed(2)}%`} />
-            <MetricCard icon={<Clock className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Eventos" value={eventos.length} />
-            <MetricCard icon={<Activity className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Métricas" value={metricsQuery.data?.meta.total ?? metricsQuery.data?.data.length ?? 0} />
-            <MetricCard icon={<BellRing className="h-[18px] w-[18px] text-offline" />} iconBg="#FEE2E2" label="Alarmes activos" value={active.filter((a) => a.torre === torre.id).length} />
+            <MetricCard icon={<TrendingUp className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Disp. 7d" value={`${torre.disp7d.toFixed(2)}%`} />
+            <MetricCard icon={<ShieldCheck className={`h-[18px] w-[18px] ${torre.slaStatus === "dentro" ? "text-online" : "text-offline"}`} />} iconBg={torre.slaStatus === "dentro" ? "#DCFCE7" : "#FEE2E2"} label={`SLA (alvo ${torre.slaTarget}%)`} value={torre.slaStatus === "dentro" ? "Dentro" : "Fora"} />
+            <MetricCard icon={<BellRing className="h-[18px] w-[18px] text-offline" />} iconBg="#FEE2E2" label="Alarmes activos" value={active.filter((a) => a.torre === torre.id).length + torre.activeAlarms} />
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCard icon={<Wifi className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Sinal (RSSI)" value={`${torre.signalStrength} dBm`} />
-            <MetricCard icon={<Zap className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="Tensão" value={`${torre.voltage.toFixed(1)} V`} />
-            <MetricCard icon={<Thermometer className="h-[18px] w-[18px] text-offline" />} iconBg="#FEE2E2" label="Temperatura" value={`${torre.temperatura} °C`} />
-            <MetricCard icon={<Activity className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="Uptime" value={torre.uptime} />
-          </div>
-
+          {/* 1. Identificação & Localização */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
-              <h3 className="text-sm font-semibold flex items-center gap-2"><Building2 className="h-4 w-4 text-azul-2" /> Informação geral</h3>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Building2 className="h-4 w-4 text-azul-2" /> Identificação & localização</h3>
               <dl className="text-xs grid grid-cols-2 gap-y-2">
                 <dt className="text-muted-foreground">Nome</dt><dd className="text-foreground">{torre.nome}</dd>
-                <dt className="text-muted-foreground">Localização</dt><dd className="text-foreground">{torre.local}, {torre.regiao}</dd>
+                <dt className="text-muted-foreground">Tower ID</dt><dd className="font-mono text-foreground">{torre.id}</dd>
+                <dt className="text-muted-foreground">Site ID</dt><dd className="font-mono text-foreground">{torre.siteId}</dd>
+                <dt className="text-muted-foreground">Site level</dt><dd className="text-foreground">{torre.siteLevel}</dd>
+                <dt className="text-muted-foreground">Categoria</dt><dd className="text-foreground">{torre.siteCategory}</dd>
+                <dt className="text-muted-foreground">Load work level</dt><dd className="text-foreground">{torre.loadWorkLevel}</dd>
                 <dt className="text-muted-foreground">Operador</dt><dd className="text-foreground">{torre.operador}</dd>
+                <dt className="text-muted-foreground">Região</dt><dd className="text-foreground">{torre.regiao}</dd>
+                <dt className="text-muted-foreground">Endereço</dt><dd className="text-foreground">{torre.endereco}</dd>
+                <dt className="text-muted-foreground">Coordenadas</dt><dd className="font-mono text-foreground">{torre.lat.toFixed(4)}, {torre.lng.toFixed(4)}</dd>
+                <dt className="text-muted-foreground">Contador eléctrico</dt><dd className="font-mono text-foreground">{torre.electricMeterId}</dd>
+              </dl>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Activity className="h-4 w-4 text-azul-2" /> Estado operacional</h3>
+              <dl className="text-xs grid grid-cols-2 gap-y-2">
+                <dt className="text-muted-foreground">Estado</dt><dd><StatusBadge status={torre.status} /></dd>
+                <dt className="text-muted-foreground">Disp. 30d</dt><dd className="font-mono text-foreground">{torre.disp30d.toFixed(2)}%</dd>
+                <dt className="text-muted-foreground">Disp. 7d</dt><dd className="font-mono text-foreground">{torre.disp7d.toFixed(2)}%</dd>
+                <dt className="text-muted-foreground">Último contacto</dt><dd className="font-mono text-foreground">{new Date(torre.lastSeenAt).toLocaleString("pt-PT")}</dd>
+                <dt className="text-muted-foreground">Actualizado em</dt><dd className="font-mono text-foreground">{torre.updatedAt}</dd>
+                <dt className="text-muted-foreground">SLA alvo</dt><dd className="text-foreground">{torre.slaTarget}%</dd>
+                <dt className="text-muted-foreground">SLA status</dt><dd className={torre.slaStatus === "dentro" ? "text-online" : "text-offline"}>{torre.slaStatus === "dentro" ? "Dentro" : "Fora"}</dd>
+                <dt className="text-muted-foreground">Alarmes activos</dt><dd className="text-foreground">{torre.activeAlarms}</dd>
+                <dt className="text-muted-foreground">Falhas activas</dt><dd className="text-foreground">{torre.activeFailures}</dd>
+                <dt className="text-muted-foreground">Uptime</dt><dd className="font-mono text-foreground">{torre.uptime}</dd>
+              </dl>
+            </div>
+          </div>
+
+          {/* 3. Energia — bloco crítico */}
+          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Zap className="h-4 w-4 text-degraded" /> Energia</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <MetricCard icon={<Zap className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="Tensão AC" value={`${torre.voltage.toFixed(1)} V`} />
+              <MetricCard icon={<Gauge className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Corrente" value={`${torre.current.toFixed(1)} A`} />
+              <MetricCard icon={<Battery className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="Bateria SoC" value={`${torre.batterySoc.toFixed(0)}%`} />
+              <MetricCard icon={<Battery className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Bateria SoH" value={`${torre.batterySoh.toFixed(0)}%`} />
+            </div>
+            <dl className="text-xs grid grid-cols-2 md:grid-cols-3 gap-y-2 pt-3 border-t border-border">
+              <dt className="text-muted-foreground">Tensão bateria</dt><dd className="font-mono text-foreground">{torre.batteryVoltage.toFixed(1)} V</dd>
+              <dt className="text-muted-foreground">Temp. bateria</dt><dd className="font-mono text-foreground">{torre.batteryTemperature.toFixed(1)} °C</dd>
+              <dt className="text-muted-foreground">Backup estimado</dt><dd className="font-mono text-foreground">{torre.batteryBackupEstimate}</dd>
+              <dt className="text-muted-foreground">Rede eléctrica</dt><dd className={torre.mainsStatus === "presente" ? "text-online" : "text-offline"}>{torre.mainsStatus}</dd>
+              <dt className="text-muted-foreground">Rectificador</dt><dd className={torre.rectifierStatus === "ok" ? "text-online" : "text-offline"}>{torre.rectifierStatus === "ok" ? "OK" : "Alarme"}</dd>
+              <dt className="text-muted-foreground">Fonte activa</dt><dd className="text-foreground capitalize">{torre.powerSourceActive}</dd>
+              <dt className="text-muted-foreground">Gerador</dt><dd className={torre.generatorStatus === "ligado" ? "text-degraded" : torre.generatorStatus === "erro" ? "text-offline" : "text-muted-foreground"}>{torre.generatorStatus}</dd>
+              <dt className="text-muted-foreground flex items-center gap-1"><Fuel className="h-3 w-3" /> Combustível</dt><dd className="font-mono text-foreground">{torre.generatorFuelLevel.toFixed(0)}%</dd>
+              <dt className="text-muted-foreground">Runtime gerador</dt><dd className="font-mono text-foreground">{torre.generatorRuntimeHours} h</dd>
+            </dl>
+            {torre.fuelTheftAlert && (
+              <div className="bg-offline-bg text-offline text-xs px-3 py-2 rounded-md flex items-center gap-2">
+                <AlertOctagon className="h-3 w-3" /> Alerta: possível furto de combustível (correlação multi-fonte).
+              </div>
+            )}
+          </div>
+
+          {/* 5 + 6. Ambiente/Shelter e Sinal/Rede */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Thermometer className="h-4 w-4 text-offline" /> Ambiente / Shelter</h3>
+              <dl className="text-xs grid grid-cols-2 gap-y-2">
+                <dt className="text-muted-foreground flex items-center gap-1"><Thermometer className="h-3 w-3" /> Temperatura</dt><dd className="font-mono text-foreground">{torre.temperatura} °C</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><Droplets className="h-3 w-3" /> Humidade</dt><dd className="font-mono text-foreground">{torre.humidity.toFixed(0)}%</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><DoorOpen className="h-3 w-3" /> Porta aberta</dt><dd className={torre.doorOpenAlarm ? "text-offline" : "text-online"}>{torre.doorOpenAlarm ? "Sim" : "Não"}</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><Flame className="h-3 w-3" /> Alarme fumo</dt><dd className={torre.smokeAlarm ? "text-offline" : "text-online"}>{torre.smokeAlarm ? "Sim" : "Não"}</dd>
+                <dt className="text-muted-foreground flex items-center gap-1"><Snowflake className="h-3 w-3" /> Ar condicionado</dt><dd className="text-foreground capitalize">{torre.acStatus}</dd>
+              </dl>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Signal className="h-4 w-4 text-azul-2" /> Sinal & rede</h3>
+              <dl className="text-xs grid grid-cols-2 gap-y-2">
+                <dt className="text-muted-foreground flex items-center gap-1"><Wifi className="h-3 w-3" /> RSSI</dt><dd className="font-mono text-foreground">{torre.signalStrength} dBm</dd>
+                <dt className="text-muted-foreground">Link status</dt><dd className={torre.linkStatus === "up" ? "text-online" : torre.linkStatus === "degraded" ? "text-degraded" : "text-offline"}>{torre.linkStatus}</dd>
+                <dt className="text-muted-foreground">Utilização BW</dt><dd className="font-mono text-foreground">{torre.bandwidthUtilization.toFixed(0)}%</dd>
                 <dt className="text-muted-foreground">Vendor</dt><dd className="text-foreground">{torre.vendor}</dd>
-                <dt className="text-muted-foreground">IP</dt><dd className="text-foreground font-mono">{torre.ip}</dd>
                 <dt className="text-muted-foreground">SNMP</dt><dd className="text-foreground">{torre.snmpVersion}</dd>
+                <dt className="text-muted-foreground">IP alvo</dt><dd className="font-mono text-foreground">{torre.ip}</dd>
+              </dl>
+            </div>
+          </div>
+
+          {/* 8. SLA / Manutenção */}
+          <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Timer className="h-4 w-4 text-azul-2" /> SLA & métricas de manutenção</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <MetricCard icon={<ShieldCheck className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="SLA alvo" value={`${torre.slaTarget}%`} />
+              <MetricCard icon={<ShieldCheck className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Realizado" value={`${torre.availabilityPercent.toFixed(2)}%`} />
+              <MetricCard icon={<Timer className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="MTTR" value={`${torre.mttrHours} h`} />
+              <MetricCard icon={<Timer className="h-[18px] w-[18px] text-online" />} iconBg="#DCFCE7" label="MTBF" value={`${torre.mtbfHours} h`} />
+              <MetricCard icon={<CalendarCheck className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Última manut." value={torre.ultimaManut} />
+            </div>
+            <dl className="text-xs grid grid-cols-2 gap-y-2 pt-3 border-t border-border">
+              <dt className="text-muted-foreground">Downtime no período</dt><dd className="font-mono text-foreground">{torre.downtimeMinutes} min</dd>
+              <dt className="text-muted-foreground">Manut. planeada (excl.)</dt><dd className="font-mono text-foreground">{torre.plannedMaintMinutes} min</dd>
+            </dl>
+            <div className="pt-2 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
+              <Radio className="h-3 w-3" /> Coleta SNMP activa
+            </div>
+          </div>
+
+          {/* Legado: dl operacional resumido */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Clock className="h-4 w-4 text-azul-2" /> Contadores</h3>
+              <dl className="text-xs grid grid-cols-2 gap-y-2">
+                <dt className="text-muted-foreground">Eventos</dt><dd className="text-foreground">{eventos.length}</dd>
+                <dt className="text-muted-foreground">Métricas coletadas</dt><dd className="text-foreground">{metricsQuery.data?.meta.total ?? metricsQuery.data?.data.length ?? 0}</dd>
               </dl>
             </div>
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2"><CalendarCheck className="h-4 w-4 text-online" /> Última manutenção</h3>
               <p className="text-2xl font-semibold font-mono text-foreground">{torre.ultimaManut}</p>
               <p className="text-xs text-muted-foreground">Próxima inspecção sugerida em 30 dias.</p>
-              <div className="pt-2 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
-                <Radio className="h-3 w-3" /> Coleta SNMP activa
-              </div>
             </div>
           </div>
 
