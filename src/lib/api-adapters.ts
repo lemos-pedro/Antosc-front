@@ -9,6 +9,7 @@ import type {
   EventType,
   TowerStatus,
 } from "@/lib/api";
+import type { Torre as MockTorre } from "@/lib/mock-data";
 
 export type UiTower = {
   id: string;
@@ -326,4 +327,37 @@ function normalize(value: string) {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
+}
+
+// Fallback: converte um mock local (src/lib/mock-data) em UiTower enriquecido
+// para quando a API não estiver acessível.
+export function mockToUiTower(t: MockTorre): UiTower {
+  const fakeApi: ApiTower = {
+    tower_id: t.id,
+    name: t.nome,
+    status: t.status,
+    operator_id: t.operador,
+    region_id: t.regiao,
+    vendor: t.vendor,
+    snmp_enabled: true,
+    snmp_version: t.snmpVersion,
+    snmp_target: t.ip,
+    availability_30d: t.disp30d,
+    updated_at: t.ultimaManut,
+    created_at: t.ultimaManut,
+  };
+  const ui = toUiTower(fakeApi);
+  return {
+    ...ui,
+    local: t.local,
+    lat: t.lat,
+    lng: t.lng,
+    regiao: t.regiao,
+    operador: t.operador,
+    signalStrength: t.signalStrength,
+    voltage: t.voltage,
+    temperatura: t.temperatura,
+    uptime: t.uptime,
+    endereco: `${t.local}, ${t.regiao}, Angola`,
+  };
 }
