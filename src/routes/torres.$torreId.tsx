@@ -1,13 +1,14 @@
 import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Clock, Activity, ShieldCheck, BellRing, Download, MapPin, Plus, FileText, Wrench, AlertOctagon, CheckCircle2, Wifi, Zap, Thermometer, Building2, Radio, CalendarCheck } from "lucide-react";
+import { ArrowLeft, Clock, Activity, ShieldCheck, BellRing, Download, MapPin, Plus, FileText, Wrench, AlertOctagon, CheckCircle2, Wifi, Zap, Thermometer, Building2, Radio, CalendarCheck, Battery, Fuel, Droplets, DoorOpen, Flame, Snowflake, Signal, Gauge, Timer, TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { api, type AlarmSeverity, type EventType } from "@/lib/api";
-import { errorMessage, queryKeys, toEvent, toUiTower } from "@/lib/api-adapters";
+import { queryKeys, toEvent, toUiTower, mockToUiTower } from "@/lib/api-adapters";
+import { torres as mockTorres } from "@/lib/mock-data";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { useAlarms } from "@/lib/alarms-store";
@@ -82,9 +83,13 @@ function TorreDetailPage() {
     queryFn: () => api.listTowerEvents(torreId, { limit: 100 }),
   });
   const latestMetric = metricsQuery.data?.data[0];
+  const mockFallback = mockTorres.find((t) => t.id === torreId);
   const torre = towerQuery.data
     ? toUiTower(towerQuery.data, { regions: regionsQuery.data?.data, operators: operatorsQuery.data?.data, latestMetric })
-    : null;
+    : mockFallback
+      ? mockToUiTower(mockFallback)
+      : null;
+  const usingFallback = !towerQuery.data && !!mockFallback;
   const torreAlarms = alarms.filter((a) => a.torre === torreId);
   const torreEquip = torre
     ? [{ id: `${torre.id}-snmp`, tipo: "SNMP Target", torre: torre.id, vendor: torre.vendor, ip: torre.ip, status: torre.status, ultimaManut: torre.ultimaManut }]
@@ -121,14 +126,14 @@ function TorreDetailPage() {
   const [dlgOpen, setDlgOpen] = useState(false);
   const operatorOptions = operatorsQuery.data?.data ?? [];
 
-  if (towerQuery.isLoading) {
+  if (towerQuery.isLoading && !mockFallback) {
     return <div className="bg-card border border-border rounded-xl p-8 text-sm text-muted-foreground">A carregar torre...</div>;
   }
 
-  if (towerQuery.isError || !torre) {
+  if (!torre) {
     return (
       <div className="bg-card border border-border rounded-xl p-8 text-sm text-offline">
-        {errorMessage(towerQuery.error)}
+        Torre {torreId} não encontrada.
       </div>
     );
   }
