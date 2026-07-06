@@ -79,28 +79,22 @@ export function TorreDetailModal({ torreId, open, onOpenChange }: TorreDetailMod
     return [];
   }, [metricsQuery.data]);
 
-  if (!open || !torre) {
-    return (
-      <Dialog open={open && !!torre} onOpenChange={onOpenChange}>
-        <DialogContent className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>A carregar...</DialogTitle>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   return (
-    <Dialog open={open && !!torre} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex items-start justify-between flex-row">
-          <div>
-            <DialogTitle className="text-lg">{torre.nome}</DialogTitle>
-            <p className="text-xs text-muted-foreground mt-1">{torre.id}</p>
+        {towerQuery.isLoading || !torre ? (
+          <div className="flex items-center justify-center py-8">
+            <p className="text-sm text-muted-foreground">A carregar detalhes da torre...</p>
           </div>
-          <StatusBadge status={torre.status} />
-        </DialogHeader>
+        ) : (
+          <>
+            <DialogHeader className="flex items-start justify-between flex-row">
+              <div>
+                <DialogTitle className="text-lg">{torre.nome}</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-1">{torre.id}</p>
+              </div>
+              <StatusBadge status={torre.status} />
+            </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList className="w-full bg-muted/50">
@@ -265,7 +259,9 @@ export function TorreDetailModal({ torreId, open, onOpenChange }: TorreDetailMod
               </div>
             )}
           </TabsContent>
-        </Tabs>
+            </Tabs>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
