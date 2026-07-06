@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { api, type TowerStatus } from "@/lib/api";
 import { errorMessage, queryKeys, toUiTower } from "@/lib/api-adapters";
 import { StatusBadge } from "./StatusBadge";
+import { TorreDetailModal } from "./TorreDetailModal";
 
 type Filter = "todas" | "degraded" | "offline";
 
@@ -15,7 +15,8 @@ const tabs: { id: Filter; label: string }[] = [
 
 export function TorresTable() {
   const [filter, setFilter] = useState<Filter>("todas");
-  const navigate = useNavigate();
+  const [selectedTorreId, setSelectedTorreId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const towersQuery = useQuery({
     queryKey: queryKeys.towers,
     queryFn: () => api.listTowers({ limit: 500 }),
@@ -34,9 +35,10 @@ export function TorresTable() {
   const rows = filter === "todas" ? torres : torres.filter((t) => t.status === (filter as TowerStatus));
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-border">
-        <h2 className="text-sm font-semibold text-foreground">Torres</h2>
+    <>
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">Torres</h2>
         <div className="flex gap-1 bg-muted rounded-lg p-1">
           {tabs.map((t) => (
             <button
@@ -73,7 +75,10 @@ export function TorresTable() {
             {rows.map((t) => (
               <tr
                 key={t.id}
-                onClick={() => navigate({ to: "/torres/$torreId", params: { torreId: t.id } })}
+                onClick={() => {
+                  setSelectedTorreId(t.id);
+                  setModalOpen(true);
+                }}
                 className="border-t border-border cursor-pointer hover:bg-muted/40 transition-colors"
               >
                 <td className="px-5 py-3 font-mono text-xs text-foreground">{t.id}</td>
@@ -90,7 +95,9 @@ export function TorresTable() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
-    </div>
+      <TorreDetailModal torreId={selectedTorreId} open={modalOpen} onOpenChange={setModalOpen} />
+    </>
   );
 }
