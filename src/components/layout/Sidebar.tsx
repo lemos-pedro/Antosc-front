@@ -23,8 +23,8 @@ function NavItem({
       to={to}
       onClick={onNavigate}
       className={[
-        "flex items-center gap-2.5 mx-2 my-px px-4 py-2 rounded-lg text-[13px] transition-colors",
-        active ? "bg-white/15 text-white font-medium" : "text-white/60 hover:bg-white/10 hover:text-white",
+        "flex items-center gap-2.5 mx-2 my-px px-4 py-2 rounded-lg text-[13px] transition-colors focus-visible:ring-2 focus-visible:ring-white/40 outline-none",
+        active ? "bg-white/15 text-white font-medium" : "text-white/60 font-normal hover:bg-white/10 hover:text-white",
       ].join(" ")}
     >
       <Icon className={["h-4 w-4 shrink-0", active ? "opacity-100" : "opacity-70"].join(" ")} />
@@ -34,7 +34,7 @@ function NavItem({
 }
 
 function Section({ title }: { title: string }) {
-  return <div className="px-4 pt-3 pb-1 text-[9px] text-white/30 font-medium uppercase tracking-[0.12em]">{title}</div>;
+  return <div className="px-4 pt-4 pb-2 text-[11px] text-white/30 font-semibold uppercase tracking-wider">{title}</div>;
 }
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {

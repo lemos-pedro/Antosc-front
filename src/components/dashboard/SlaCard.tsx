@@ -21,17 +21,22 @@ export function SlaCard() {
   const slaRegioes = buildRegionStats(uiTowers, regionsQuery.data?.data);
   const slaGlobal = slaQuery.data?.availability_percent ?? 0;
   const slaTorresAfetadas = slaQuery.data?.affected_towers ?? uiTowers.filter((tower) => tower.status !== "online").length;
+  const slaStatus = slaGlobal >= 99.5 ? "critical" : slaGlobal >= 98 ? "ok" : "degraded";
+  const slaColor = slaStatus === "critical" ? "text-online" : slaStatus === "ok" ? "text-azul-2" : "text-degraded";
+  const slaBg = slaStatus === "critical" ? "bg-online-bg" : slaStatus === "ok" ? "bg-muted" : "bg-degraded-bg";
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5">
+    <div className={`border border-border rounded-xl p-5 transition-colors ${slaBg}`}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-foreground">SLA por região</h3>
-        <span className="text-[11px] text-muted-foreground">{slaTorresAfetadas} torres afectadas</span>
+        <span className={`text-[11px] px-2 py-1 rounded-full font-medium ${slaStatus === "critical" ? "bg-online/20 text-online" : slaStatus === "ok" ? "bg-azul-2/20 text-azul-2" : "bg-degraded/20 text-degraded"}`}>
+          {slaStatus === "critical" ? "Excelente" : slaStatus === "ok" ? "Bom" : "Risco"}
+        </span>
       </div>
       {slaQuery.isError && <p className="mb-3 text-xs text-offline">{errorMessage(slaQuery.error)}</p>}
       <div className="mb-5">
-        <div className="text-3xl font-semibold text-azul leading-none">{slaGlobal.toFixed(2)}%</div>
-        <div className="text-[11px] text-muted-foreground mt-1">SLA global agregado</div>
+        <div className={`text-3xl font-semibold ${slaColor} leading-none`}>{slaGlobal.toFixed(2)}%</div>
+        <div className="text-[11px] text-muted-foreground mt-1">{slaTorresAfetadas} torres afectadas</div>
       </div>
       <div className="flex flex-col gap-3">
         {slaRegioes.map((r) => {

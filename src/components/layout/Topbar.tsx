@@ -46,7 +46,7 @@ export function Topbar() {
       <div className="flex items-center gap-3 min-w-0">
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
-            <button className="lg:hidden p-2 -ml-2 text-foreground hover:bg-muted rounded-md">
+            <button className="lg:hidden p-2 -ml-2 text-foreground hover:bg-muted rounded-md focus-visible:ring-2 focus-visible:ring-azul-2 outline-none">
               <Menu className="h-5 w-5" />
             </button>
           </SheetTrigger>
@@ -65,7 +65,7 @@ export function Topbar() {
 
         <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
           <PopoverTrigger asChild>
-            <button className="relative p-2 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors">
+            <button className="relative p-2 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors focus-visible:ring-2 focus-visible:ring-azul-2 outline-none">
               <Bell className="h-5 w-5" />
               {active.length > 0 && (
                 <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-offline text-white text-[10px] font-bold flex items-center justify-center">
@@ -112,7 +112,7 @@ export function Topbar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 rounded-full bg-azul text-white text-xs font-semibold flex items-center justify-center">
+            <button className="w-8 h-8 rounded-full bg-azul text-white text-xs font-semibold flex items-center justify-center focus-visible:ring-2 focus-visible:ring-azul-2 outline-none">
               {initials}
             </button>
           </DropdownMenuTrigger>

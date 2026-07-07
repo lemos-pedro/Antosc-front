@@ -5,6 +5,10 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TorresTable } from "@/components/dashboard/TorresTable";
 import { SlaCard } from "@/components/dashboard/SlaCard";
 import { AlarmsCard } from "@/components/dashboard/AlarmsCard";
+import { AvailabilityChart } from "@/components/dashboard/AvailabilityChart";
+import { StatusSummaryCard } from "@/components/dashboard/StatusSummaryCard";
+import { EventsTimelineCard } from "@/components/dashboard/EventsTimelineCard";
+import { OperatorStatsChart } from "@/components/dashboard/OperatorStatsChart";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/api-adapters";
 
@@ -65,6 +69,13 @@ function DashboardPage() {
         />
       </div>
 
+      <StatusSummaryCard />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <AvailabilityChart />
+        <OperatorStatsChart />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-4">
         <TorresTable />
         <div className="flex flex-col gap-4">
@@ -72,6 +83,8 @@ function DashboardPage() {
           <AlarmsCard />
         </div>
       </div>
+
+      <EventsTimelineCard />
     </>
   );
 }
