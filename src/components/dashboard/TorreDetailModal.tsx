@@ -1,6 +1,18 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { X, ShieldCheck, TrendingUp, BellRing, Zap, Battery, MapPin } from "lucide-react";
+import {
+  ShieldCheck,
+  TrendingUp,
+  BellRing,
+  Zap,
+  Battery,
+  Wifi,
+  Cloud,
+  Lock,
+  HardDrive,
+  Thermometer,
+  AlertTriangle,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -9,6 +21,11 @@ import { errorMessage, queryKeys, toUiTower } from "@/lib/api-adapters";
 import { MetricCard } from "./MetricCard";
 import { StatusBadge } from "./StatusBadge";
 import { useAlarms } from "@/lib/alarms-store";
+import { generateCompleteTowerData, generateTimeSeriesData, generateOperatorMetrics } from "@/lib/mock-tower-data";
+import { MetricGauge } from "@/components/charts/MetricGauge";
+import { StatusGrid } from "@/components/charts/StatusGrid";
+import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { OperatorStatusList } from "@/components/charts/OperatorStatusList";
 
 interface TorreDetailModalProps {
   torreId: string | null;
@@ -23,9 +40,11 @@ function fmtNum(value: number | undefined, decimals = 1, unit = ""): string {
   return `${value.toFixed(decimals)}${unit}`;
 }
 
+type TabType = "overview" | "energy" | "network" | "environment" | "security" | "system" | "alarms";
+
 export function TorreDetailModal({ torreId, open, onOpenChange }: TorreDetailModalProps) {
   const { active: alarmesAtivos } = useAlarms();
-  const [tab, setTab] = useState<"overview" | "alarms" | "events">("overview");
+  const [tab, setTab] = useState<TabType>("overview");
 
   const towerQuery = useQuery({
     queryKey: torreId ? queryKeys.tower(torreId) : ["disabled"],
@@ -56,14 +75,17 @@ export function TorreDetailModal({ torreId, open, onOpenChange }: TorreDetailMod
   });
 
   const torre = towerQuery.data
-    ? toUiTower(towerQuery.data, {
+    ? generateCompleteTowerData(toUiTower(towerQuery.data, {
         regions: regionsQuery.data?.data,
         operators: operatorsQuery.data?.data,
         latestMetric: metricsQuery.data?.data[0],
-      })
+      }))
     : null;
 
   const torreAlarms = torreId ? alarmesAtivos.filter((a) => a.torre === torreId) : [];
+
+  const timeSeriesData = torreId ? generateTimeSeriesData(torreId) : [];
+  const operatorMetrics = torreId ? generateOperatorMetrics(torreId) : [];
 
   const series = useMemo(() => {
     const metrics = metricsQuery.data?.data ?? [];
@@ -96,19 +118,18 @@ export function TorreDetailModal({ torreId, open, onOpenChange }: TorreDetailMod
               <StatusBadge status={torre.status} />
             </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList className="w-full bg-muted/50">
-            <TabsTrigger value="overview" className="flex-1">
-              Visão Geral
-            </TabsTrigger>
-            <TabsTrigger value="alarms" className="flex-1">
-              Alarmes ({torreAlarms.length})
-            </TabsTrigger>
-            <TabsTrigger value="events" className="flex-1">
-              Eventos
-            </TabsTrigger>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabType)}>
+          <TabsList className="w-full bg-muted/50 grid grid-cols-7">
+            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+            <TabsTrigger value="energy">Energia</TabsTrigger>
+            <TabsTrigger value="network">Rede</TabsTrigger>
+            <TabsTrigger value="environment">Ambiente</TabsTrigger>
+            <TabsTrigger value="security">Segurança</TabsTrigger>
+            <TabsTrigger value="system">Sistema</TabsTrigger>
+            <TabsTrigger value="alarms">Alarmes ({torreAlarms.length})</TabsTrigger>
           </TabsList>
 
+          {/* OVERVIEW TAB */}
           <TabsContent value="overview" className="space-y-4 mt-4">
             {/* Métricas principais */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -223,6 +244,104 @@ export function TorreDetailModal({ torreId, open, onOpenChange }: TorreDetailMod
             </div>
           </TabsContent>
 
+          {/* ENERGY TAB */}
+          <TabsContent value="energy" className="space-y-4 mt-4">
+            <div className="grid grid-cols-3 gap-4">
+              <MetricGauge value={torre?.batterySoc ?? 0} label="Bateria SoC" color="#EF4444" size={100} />
+              <MetricGauge value={torre?.batterySoh ?? 0} label="Bateria SoH" color="#F97316" size={100} />
+              <MetricGauge value={torre?.generatorFuelLevel ?? 0} label="Combustível" color="#06B6D4" size={100} />
+            </div>
+            <TimeSeriesChart
+              data={timeSeriesData}
+              title="Tensão Rectificador"
+              lines={[
+                { key: "rectifier", name: "Rectificador", color: "#2563EB" },
+                { key: "battery", name: "Bateria", color: "#EF4444" },
+              ]}
+            />
+            <StatusGrid
+              items={[
+                { label: "Fonte Activa", value: torre?.powerSourceActive?.toUpperCase() ?? NO_DATA, status: "info" },
+                { label: "Mains", value: torre?.mainsStatus?.toUpperCase() ?? NO_DATA },
+                { label: "Rectificador", value: torre?.rectifierStatus?.toUpperCase() ?? NO_DATA },
+                { label: "Gerador", value: torre?.generatorStatus?.toUpperCase() ?? NO_DATA },
+              ]}
+            />
+          </TabsContent>
+
+          {/* NETWORK TAB */}
+          <TabsContent value="network" className="space-y-4 mt-4">
+            <OperatorStatusList operators={operatorMetrics} />
+            <TimeSeriesChart
+              data={timeSeriesData}
+              title="Performance de Rede (24h)"
+              lines={[
+                { key: "rectifier", name: "Latência", color: "#2563EB" },
+                { key: "temperature", name: "Jitter", color: "#06B6D4" },
+              ]}
+            />
+            <StatusGrid
+              items={[
+                { label: "Backhaul", value: torre?.backhaul?.type ?? NO_DATA, status: "info" },
+                { label: "Bandwidth", value: `${torre?.backhaul?.bandwidth ?? 0} Mbps`, status: "info" },
+                { label: "Células", value: `${torre?.ran?.cells ?? 0}`, status: "info" },
+                { label: "PRB", value: `${torre?.ran?.prb ?? 0}%`, status: "info" },
+              ]}
+            />
+          </TabsContent>
+
+          {/* ENVIRONMENT TAB */}
+          <TabsContent value="environment" className="space-y-4 mt-4">
+            <TimeSeriesChart
+              data={timeSeriesData}
+              title="Temperatura e Humidade (24h)"
+              lines={[{ key: "temperature", name: "Temperatura", color: "#EF4444" }]}
+              areas={[{ key: "generator", name: "Humidade", color: "#3B82F6" }]}
+            />
+            <StatusGrid
+              items={[
+                { label: "Temperatura", value: `${torre?.temperatura ?? 0}°C`, status: "info" },
+                { label: "Humidade", value: `${torre?.humidity ?? 0}%`, status: "info" },
+                { label: "Fluxo Ar", value: `${torre?.airflow ?? 0} CFM`, status: "info" },
+                { label: "Porta Abrigo", value: torre?.shelter?.door?.toUpperCase() ?? NO_DATA },
+                { label: "AC Abrigo", value: torre?.shelter?.ac?.toUpperCase() ?? NO_DATA },
+                { label: "AC Temp", value: `${torre?.shelter?.acTemp ?? 0}°C`, status: "info" },
+              ]}
+            />
+          </TabsContent>
+
+          {/* SECURITY TAB */}
+          <TabsContent value="security" className="space-y-4 mt-4">
+            <StatusGrid
+              items={[
+                { label: "Último Acesso", value: torre?.accessLog?.lastAccess ?? NO_DATA, icon: "🔓", status: "info" },
+                { label: "Total Acessos", value: `${torre?.accessLog?.totalAccess ?? 0}`, icon: "📊", status: "info" },
+                { label: "Câmaras", value: `${torre?.camera?.count ?? 0}`, icon: "📹", status: "info" },
+                { label: "Gravação", value: torre?.camera?.recording ? "Ativa" : "Inativa", icon: "🔴" },
+                { label: "Detecção", value: torre?.motion?.detected ? "Activa" : "Inactiva", icon: "👁️" },
+                { label: "Eventos Moção", value: `${torre?.motion?.count ?? 0}`, icon: "📍", status: "info" },
+              ]}
+            />
+          </TabsContent>
+
+          {/* SYSTEM TAB */}
+          <TabsContent value="system" className="space-y-4 mt-4">
+            <div className="grid grid-cols-3 gap-4">
+              <MetricGauge value={torre?.cpu ?? 0} label="CPU" color="#2563EB" size={100} max={100} />
+              <MetricGauge value={torre?.ram ?? 0} label="RAM" color="#06B6D4" size={100} max={100} />
+              <MetricGauge value={torre?.storage ?? 0} label="Storage" color="#EF4444" size={100} max={100} />
+            </div>
+            <StatusGrid
+              items={[
+                { label: "Uptime", value: torre?.uptime ?? NO_DATA, status: "info" },
+                { label: "CPU", value: `${torre?.cpu ?? 0}%`, status: "info" },
+                { label: "RAM", value: `${torre?.ram ?? 0}%`, status: "info" },
+                { label: "Storage", value: `${torre?.storage ?? 0}%`, status: "info" },
+              ]}
+            />
+          </TabsContent>
+
+          {/* ALARMS TAB */}
           <TabsContent value="alarms" className="mt-4 space-y-2">
             {towerQuery.isLoading && <p className="text-xs text-muted-foreground">A carregar...</p>}
             {torreAlarms.length === 0 ? (
@@ -234,25 +353,6 @@ export function TorreDetailModal({ torreId, open, onOpenChange }: TorreDetailMod
                     <div className="font-medium text-foreground">{a.title}</div>
                     <div className="text-muted-foreground mt-1">
                       {a.date} {a.time} · <span className="uppercase text-[10px] font-semibold">{a.severity}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="events" className="mt-4 space-y-2">
-            {eventsQuery.isLoading && <p className="text-xs text-muted-foreground">A carregar...</p>}
-            {eventsQuery.isError && <p className="text-xs text-offline">{errorMessage(eventsQuery.error)}</p>}
-            {(eventsQuery.data?.data ?? []).length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">Sem eventos</p>
-            ) : (
-              <div className="space-y-2">
-                {(eventsQuery.data?.data ?? []).slice(0, 10).map((e) => (
-                  <div key={e.event_id} className="bg-muted/50 rounded p-3 text-xs">
-                    <div className="font-medium text-foreground">{e.message}</div>
-                    <div className="text-muted-foreground mt-1">
-                      {new Date(e.occurred_at).toLocaleString("pt-PT")} · <span className="uppercase text-[10px]">{e.type}</span>
                     </div>
                   </div>
                 ))}
