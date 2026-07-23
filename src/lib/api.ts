@@ -183,7 +183,9 @@ async function requestPaginated<T>(
     });
   }
 
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    "ngrok-skip-browser-warning": "true",
+  };
 
   if (opts.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -297,45 +299,76 @@ interface RequestOpts {
   raw?: boolean; // retorna Response (ex: CSV export)
 }
 
-async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  opts: RequestOpts = {},
+): Promise<T> {
   const url = new URL(path, API_BASE_URL);
+
   if (opts.query) {
     Object.entries(opts.query).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+      if (v !== undefined && v !== null && v !== "") {
+        url.searchParams.set(k, String(v));
+      }
     });
   }
-  const headers: Record<string, string> = {};
+
+  const headers: Record<string, string> = {
+    "ngrok-skip-browser-warning": "true",
+  };
 
   if (opts.body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
+
   if (opts.protected) {
-    if (auth.token) headers["Authorization"] = `Bearer ${auth.token}`;
-    if (auth.apiKey) headers["X-API-Key"] = auth.apiKey;
+    if (auth.token) {
+      headers["Authorization"] = `Bearer ${auth.token}`;
+    }
+
+    if (auth.apiKey) {
+      headers["X-API-Key"] = auth.apiKey;
+    }
   }
+
   const res = await fetch(url.toString(), {
     method: opts.method ?? "GET",
     headers,
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    body: opts.body !== undefined
+      ? JSON.stringify(opts.body)
+      : undefined,
   });
-  if (opts.raw) return res as unknown as T;
+
+  if (opts.raw) {
+    return res as unknown as T;
+  }
+
   if (!res.ok) {
     let err: ApiError;
+
     try {
       const body = await res.json();
-      // FIX: api.md define o erro envelopado como { "error": { code, message, request_id } }.
-      // O código anterior tratava `body` inteiro como ApiError, o que deixava
-      // err.code/err.message sempre undefined.
+
       err =
-        body && typeof body === "object" && "error" in body
+        body &&
+        typeof body === "object" &&
+        "error" in body
           ? (body.error as ApiError)
           : (body as ApiError);
     } catch {
-      err = { code: String(res.status), message: res.statusText };
+      err = {
+        code: String(res.status),
+        message: res.statusText,
+      };
     }
+
     throw err;
   }
-  if (res.status === 204) return undefined as T;
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   return res.json() as Promise<T>;
 }
 
