@@ -183,9 +183,11 @@ async function requestPaginated<T>(
     });
   }
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = {};
+
+  if (opts.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (opts.protected) {
     if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
@@ -302,7 +304,11 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
       if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
     });
   }
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {};
+
+  if (opts.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
   if (opts.protected) {
     if (auth.token) headers["Authorization"] = `Bearer ${auth.token}`;
     if (auth.apiKey) headers["X-API-Key"] = auth.apiKey;
