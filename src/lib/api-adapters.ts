@@ -355,11 +355,10 @@ export function toAlarm(ticket: ApiTicket, tower?: ApiTower, event?: ApiEvent): 
   return {
     id: ticket.ticket_id,
     eventId: ticket.event_id,
+    towerId: ticket.tower_id,                                          // adicionado
+    towerName: ticket.tower_name || tower?.name || ticket.tower_id,     // renomeado de "torre"
     severity: event?.severity ?? "info",
     title: event?.message ?? "Sem descrição do evento associado",
-    // Prioridade: nome vindo do próprio ticket (JOIN no backend) → nome da
-    // torre já carregada em memória → fallback ao ID em bruto como último recurso.
-    torre: ticket.tower_name || tower?.name || ticket.tower_id,
     vendor: tower?.vendor ?? "—",
     date: created.date,
     time: created.time,

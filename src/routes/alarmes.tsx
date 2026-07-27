@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertOctagon, AlertTriangle, Info, ChevronRight } from "lucide-react";
+import { AlertOctagon, AlertTriangle, Info, ChevronRight, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAlarms } from "@/lib/alarms-store";
 import { api, type AlarmSeverity, type TicketStatus } from "@/lib/api";
@@ -45,7 +46,7 @@ function groupByKey(alarms: Alarm[]): Group[] {
     const existing = map.get(key);
     if (existing) {
       existing.ocorrencias.push(a);
-      existing.sites.add(a.torre);
+      existing.sites.add(a.towerName);
       existing.vendors.add(a.vendor);
       if (`${a.date} ${a.time}` > `${existing.ultima.date} ${existing.ultima.time}`) {
         existing.ultima = a;
@@ -57,7 +58,7 @@ function groupByKey(alarms: Alarm[]): Group[] {
         message: a.title,
         ocorrencias: [a],
         ultima: a,
-        sites: new Set([a.torre]),
+        sites: new Set([a.towerName]),
         vendors: new Set([a.vendor]),
       });
     }
@@ -68,11 +69,279 @@ function groupByKey(alarms: Alarm[]): Group[] {
   );
 }
 
+// ---------- Export por período, resumido por site ----------
+
+type SiteExportRow = {
+  site: string;
+  ip: string;
+  total: number;
+  critical: number;
+  warning: number;
+  info: number;
+  open: number;
+  ack: number;
+  closed: number;
+};
+
+function buildSiteExportRows(
+  alarms: Alarm[],
+  towersById: Map<string, { name: string; ip?: string }>,
+  fromDate: string,
+  toDate: string,
+): SiteExportRow[] {
+  // fromDate/toDate no formato yyyy-mm-dd (comparação por string funciona
+  // porque Alarm.date já vem nesse formato via splitDateTime).
+  const inRange = alarms.filter((a) => {
+    if (fromDate && a.date < fromDate) return false;
+    if (toDate && a.date > toDate) return false;
+    return true;
+  });
+
+  const bySite = new Map<string, SiteExportRow>();
+
+  for (const a of inRange) {
+    const towerInfo = towersById.get(a.towerId);
+    const siteName = towerInfo?.name || a.towerName || a.towerId;
+    const ip = towerInfo?.ip || "—";
+
+    const row = bySite.get(a.towerId) ?? {
+      site: siteName,
+      ip,
+      total: 0,
+      critical: 0,
+      warning: 0,
+      info: 0,
+      open: 0,
+      ack: 0,
+      closed: 0,
+    };
+
+    row.total += 1;
+    row[a.severity] += 1;
+    if (a.status === "active") row.open += 1;
+    else if (a.status === "ack") row.ack += 1;
+    else row.closed += 1;
+
+    bySite.set(a.towerId, row);
+  }
+
+  return Array.from(bySite.values()).sort((a, b) => b.total - a.total);
+}
+
+function severityLabel(row: SiteExportRow): string {
+  const parts: string[] = [];
+  if (row.critical > 0) parts.push(`${row.critical} crítico${row.critical > 1 ? "s" : ""}`);
+  if (row.warning > 0) parts.push(`${row.warning} aviso${row.warning > 1 ? "s" : ""}`);
+  if (row.info > 0) parts.push(`${row.info} info`);
+  return parts.length > 0 ? parts.join(", ") : "—";
+}
+
+function statusLabel(row: SiteExportRow): string {
+  const parts: string[] = [];
+  if (row.open > 0) parts.push(`${row.open} aberto${row.open > 1 ? "s" : ""}`);
+  if (row.ack > 0) parts.push(`${row.ack} confirmado${row.ack > 1 ? "s" : ""}`);
+  if (row.closed > 0) parts.push(`${row.closed} fechado${row.closed > 1 ? "s" : ""}`);
+  return parts.length > 0 ? parts.join(", ") : "—";
+}
+
+function exportRowsToSheetData(rows: SiteExportRow[]) {
+  return rows.map((r) => ({
+    "Nome do Site": r.site,
+    "IP": r.ip,
+    "Número de Alarmes": r.total,
+    "Severidade": severityLabel(r),
+    "Estado": statusLabel(r),
+  }));
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function isDateInRange(
+  date: string,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  const day = date.slice(0, 10);
+
+  if (fromDate && day < fromDate) return false;
+  if (toDate && day > toDate) return false;
+
+  return true;
+}
+
+function buildTicketSummary(
+  tickets: any[],
+  fromDate: string,
+  toDate: string,
+) {
+  const filtered = tickets.filter((ticket) =>
+    isDateInRange(ticket.created_at, fromDate, toDate),
+  );
+
+  const open = filtered.filter((t) => t.status === "open").length;
+
+  const acknowledged = filtered.filter(
+    (t) => t.status === "acknowledged",
+  ).length;
+
+  const closed = filtered.filter(
+    (t) => t.status === "closed",
+  ).length;
+
+  return [
+    {
+      "Período": `${fromDate || "Início"} até ${toDate || "Hoje"}`,
+      "Total de Tickets": filtered.length,
+      "Tickets Abertos": open,
+      "Tickets Confirmados": acknowledged,
+      "Tickets Fechados": closed,
+    },
+  ];
+}
+
+function exportAlarmRows(alarms: Alarm[]) {
+  return alarms.map((a) => ({
+    "ID": a.id,
+    "Data": a.date,
+    "Hora": a.time,
+    "Torre": a.towerName,
+    "Tower ID": a.towerId,
+    "Vendor": a.vendor,
+    "Título": a.title,
+    "Severidade": a.severity,
+    "Estado": a.status,
+  }));
+}
+
+function exportToXlsx(
+  rows: SiteExportRow[],
+  alarms: Alarm[],
+  tickets: any[],
+  fromDate: string,
+  toDate: string,
+) {
+  const workbook = XLSX.utils.book_new();
+
+  // =====================================================
+  // ABA 1 — RESUMO POR SITE
+  // =====================================================
+
+  const siteData = exportRowsToSheetData(rows);
+  const siteWorksheet = XLSX.utils.json_to_sheet(siteData);
+
+  siteWorksheet["!cols"] = [
+    { wch: 20 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 30 },
+    { wch: 30 },
+  ];
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    siteWorksheet,
+    "Alarmes por Site",
+  );
+
+  // =====================================================
+  // ABA 2 — RESUMO DE TICKETS
+  // =====================================================
+
+  const ticketSummary = buildTicketSummary(
+    tickets,
+    fromDate,
+    toDate,
+  );
+
+  const ticketWorksheet = XLSX.utils.json_to_sheet(ticketSummary);
+
+  ticketWorksheet["!cols"] = [
+    { wch: 30 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 18 },
+  ];
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    ticketWorksheet,
+    "Resumo de Tickets",
+  );
+
+  // =====================================================
+  // ABA 3 — TODOS OS ALARMES
+  // =====================================================
+
+  const filteredAlarms = alarms.filter((a) =>
+    isDateInRange(a.date, fromDate, toDate),
+  );
+
+  const alarmData = exportAlarmRows(filteredAlarms);
+  const alarmWorksheet = XLSX.utils.json_to_sheet(alarmData);
+
+  alarmWorksheet["!cols"] = [
+    { wch: 38 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 24 },
+    { wch: 38 },
+    { wch: 14 },
+    { wch: 60 },
+    { wch: 14 },
+    { wch: 14 },
+  ];
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    alarmWorksheet,
+    "Todos os Alarmes",
+  );
+
+  // =====================================================
+  // DOWNLOAD
+  // =====================================================
+
+  const wbout = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+  });
+
+  const blob = new Blob([wbout], {
+    type: "application/octet-stream",
+  });
+
+  downloadBlob(
+    blob,
+    `relatorio_${fromDate || "inicio"}_a_${toDate || "hoje"}.xlsx`,
+  );
+}
+
+function exportToCsv(rows: SiteExportRow[], fromDate: string, toDate: string) {
+  const data = exportRowsToSheetData(rows);
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const csv = XLSX.utils.sheet_to_csv(worksheet);
+  // BOM para o Excel reconhecer acentos em UTF-8 corretamente.
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  downloadBlob(blob, `alarmes_${fromDate || "inicio"}_a_${toDate || "hoje"}.csv`);
+}
+
 function AlarmesPage() {
   const { alarms, active } = useAlarms();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState<Alarm | null>(null);
   const [filter, setFilter] = useState<"all" | AlarmSeverity>("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const grupos = useMemo(() => {
     const source = filter === "all" ? active : active.filter((a) => a.severity === filter);
@@ -81,16 +350,93 @@ function AlarmesPage() {
 
   const ticketsQuery = useQuery({
     queryKey: queryKeys.tickets,
-    queryFn: () => api.listTickets({ limit: 100 }),
+    queryFn: () => api.listTickets({ limit: 1000000000000000000 }),
   });
+
+  // Torres carregadas só para o export (nome + IP) — não duplica o que já
+  // existe no AlarmsProvider porque este não expõe a lista de towers.
+  const towersQuery = useQuery({
+    queryKey: queryKeys.towers,
+    queryFn: () => api.listTowers({ limit: 500 }),
+  });
+
+  const towersById = useMemo(() => {
+    const raw = towersQuery.data;
+    const list = raw && "data" in raw ? raw.data : Array.isArray(raw) ? raw : [];
+    return new Map(list.map((t) => [t.tower_id, { name: t.name, ip: t.snmp_target || undefined }]));
+  }, [towersQuery.data]);
+
+  const exportRows = useMemo(
+    () => buildSiteExportRows(alarms, towersById, fromDate, toDate),
+    [alarms, towersById, fromDate, toDate],
+  );
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Alarmes & Tickets</h1>
-        <p className="text-xs text-muted-foreground mt-1">
-          {active.length} alarmes activos · {grupos.length} agrupados por assinatura
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Alarmes & Tickets</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            {active.length} alarmes activos · {grupos.length} agrupados por assinatura
+          </p>
+        </div>
+      </div>
+
+      {/* Export por período — resumo por site, para enviar ao NOC */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">Exportar alarmes por período</h2>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-[11px] text-muted-foreground mb-1">De</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="text-xs bg-muted/30 border border-border rounded-md px-2 py-1.5"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-muted-foreground mb-1">Até</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="text-xs bg-muted/30 border border-border rounded-md px-2 py-1.5"
+            />
+          </div>
+          <button
+            onClick={() => exportToCsv(exportRows, fromDate, toDate)}
+            disabled={exportRows.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-card border border-border text-foreground hover:bg-muted/40 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Download className="h-3.5 w-3.5" /> CSV
+          </button>
+          <button
+            onClick={() =>
+                exportToXlsx(
+                  exportRows,
+                  alarms,
+                  ticketsQuery.data?.data ?? [],
+                  fromDate,
+                  toDate,
+                )
+              }
+            disabled={exportRows.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-azul text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Download className="h-3.5 w-3.5" /> Excel
+          </button>
+          <span className="text-[11px] text-muted-foreground">
+            {exportRows.length === 0
+              ? "Sem alarmes no período selecionado"
+              : `${exportRows.length} sites · ${exportRows.reduce((s, r) => s + r.total, 0)} alarmes`}
+          </span>
+        </div>
+        {!fromDate && !toDate && (
+          <p className="text-[11px] text-muted-foreground">
+            Sem período definido, exporta o histórico completo disponível.
+          </p>
+        )}
       </div>
 
       <Tabs defaultValue="feed">
@@ -150,7 +496,7 @@ function AlarmesPage() {
                             className="w-full text-left px-5 py-2 flex items-center gap-3 text-xs hover:bg-muted/40"
                           >
                             <span className="font-mono text-muted-foreground">{a.date} {a.time}</span>
-                            <span className="font-mono">{a.torre}</span>
+                            <span className="font-mono">{a.towerName}</span>
                             <span className="text-muted-foreground truncate flex-1">{a.title}</span>
                             <span className="text-[10px] uppercase text-muted-foreground">{a.status}</span>
                           </button>

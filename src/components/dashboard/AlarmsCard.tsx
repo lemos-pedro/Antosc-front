@@ -54,7 +54,7 @@ export function AlarmsCard() {
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium truncate">{a.title}</div>
                     <div className="text-[11px] opacity-75 mt-0.5 font-mono">
-                      {a.torre} · {a.vendor} · {a.time}
+                      {a.towerName} · {a.vendor} · {a.time}
                     </div>
                   </div>
                 </button>

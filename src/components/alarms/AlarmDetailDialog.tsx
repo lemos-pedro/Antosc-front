@@ -19,7 +19,7 @@ export function AlarmDetailDialog({ alarm, open, onOpenChange }: { alarm: Alarm 
 
   const towerQuery = useQuery({
     queryKey: queryKeys.tower(alarm?.torre ?? ""),
-    queryFn: () => api.getTower(alarm!.torre),
+    queryFn: () => api.getTower(alarm!.tower),
     enabled: !!alarm && open,
   });
   const regionsQuery = useQuery({
@@ -63,7 +63,7 @@ export function AlarmDetailDialog({ alarm, open, onOpenChange }: { alarm: Alarm 
           <Field label="Data" value={alarm.date} mono />
           <Field label="Hora" value={alarm.time} mono />
           <Field label="Estado" value={alarm.status === "active" ? "Activo" : alarm.status === "ack" ? "Confirmado" : "Fechado"} />
-          <Field label="Torre" value={alarm.torre} mono />
+          <Field label="Torre" value={alarm.towerName} mono />
         </div>
 
         {towerQuery.isLoading && (
@@ -75,7 +75,7 @@ export function AlarmDetailDialog({ alarm, open, onOpenChange }: { alarm: Alarm 
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Torre afectada</p>
-                <p className="text-sm font-semibold text-foreground">{torre.nome}</p>
+                <p className="text-sm font-semibold text-foreground">{torre.name}</p>
               </div>
               <StatusBadge status={torre.status} />
             </div>
