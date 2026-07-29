@@ -7,6 +7,9 @@ import { queryKeys, toAlarm, type Alarm } from "@/lib/api-adapters";
 type Ctx = {
   alarms: Alarm[];
   active: Alarm[];
+  tickets: ApiTicket[];
+  ticketsLoading: boolean;
+  ticketsError: boolean;
   ack: (id: string) => void;
   close: (id: string) => void;
 };
@@ -21,9 +24,16 @@ export function AlarmsProvider({ children }: { children: ReactNode }) {
     queryFn: () => api.listTowers({ limit: 500 }),
   });
 
+  // FIX: antes disto usava listTickets({ limit: 100 }), uma única página
+  // sem paginação nem filtro de data — qualquer ticket fora dos 100 mais
+  // recentes desaparecia silenciosamente dos exports (era a causa real do
+  // "export só mostra alarmes abertos": tickets fechados de datas
+  // anteriores caem fora da janela top-100 com mais frequência que os
+  // abertos, que por definição são recentes). fetchAllTickets pagina até
+  // trazer tudo.
   const ticketsQuery = useQuery({
     queryKey: queryKeys.tickets,
-    queryFn: () => api.listTickets({ limit: 100 }),
+    queryFn: () => api.fetchAllTickets(),
   });
 
   /**
@@ -44,15 +54,7 @@ export function AlarmsProvider({ children }: { children: ReactNode }) {
   /**
    * Tickets
    */
-  const tickets = useMemo<ApiTicket[]>(() => {
-    const raw = ticketsQuery.data;
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw as ApiTicket[];
-    if (typeof raw === "object" && raw !== null && "data" in raw && Array.isArray((raw as any).data)) {
-      return (raw as any).data as ApiTicket[];
-    }
-    return [];
-  }, [ticketsQuery.data]);
+  const tickets = useMemo<ApiTicket[]>(() => ticketsQuery.data ?? [], [ticketsQuery.data]);
 
   /**
    * Events — os tickets não têm mensagem própria (a mensagem real vive em
@@ -122,7 +124,17 @@ export function AlarmsProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AlarmsCtx.Provider value={{ alarms, active, ack, close }}>
+    <AlarmsCtx.Provider
+      value={{
+        alarms,
+        active,
+        tickets,
+        ticketsLoading: ticketsQuery.isLoading,
+        ticketsError: ticketsQuery.isError,
+        ack,
+        close,
+      }}
+    >
       {children}
     </AlarmsCtx.Provider>
   );

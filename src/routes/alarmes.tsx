@@ -391,7 +391,7 @@ function exportToCsv(
 }
 
 function AlarmesPage() {
-  const { alarms, active } = useAlarms();
+  const { alarms, active, tickets, ticketsLoading, ticketsError } = useAlarms();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState<Alarm | null>(null);
   const [filter, setFilter] = useState<"all" | AlarmSeverity>("all");
@@ -402,11 +402,6 @@ function AlarmesPage() {
     const source = filter === "all" ? active : active.filter((a) => a.severity === filter);
     return groupByKey(source);
   }, [active, filter]);
-
-  const ticketsQuery = useQuery({
-    queryKey: queryKeys.tickets,
-    queryFn: () => api.listTickets({ limit: 1000000000000000000 }),
-  });
 
   // Torres carregadas só para o export (nome + IP) — não duplica o que já
   // existe no AlarmsProvider porque este não expõe a lista de towers.
@@ -460,7 +455,7 @@ function AlarmesPage() {
             />
           </div>
           <button
-            onClick={() => exportToCsv(exportRows, fromDate, toDate)}
+            onClick={() => exportToCsv(exportRows, alarms, tickets, fromDate, toDate)}
             disabled={exportRows.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-card border border-border text-foreground hover:bg-muted/40 disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -471,7 +466,7 @@ function AlarmesPage() {
                 exportToXlsx(
                   exportRows,
                   alarms,
-                  ticketsQuery.data?.data ?? [],
+                  tickets,
                   fromDate,
                   toDate,
                 )
@@ -567,12 +562,12 @@ function AlarmesPage() {
 
         <TabsContent value="tickets" className="mt-4">
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            {ticketsQuery.isLoading && <div className="p-8 text-center text-xs text-muted-foreground">A carregar tickets...</div>}
-            {ticketsQuery.isError && <div className="p-8 text-center text-xs text-offline">Sem acesso aos tickets (auth necessária).</div>}
-            {ticketsQuery.data && ticketsQuery.data.data.length === 0 && (
+            {ticketsLoading && <div className="p-8 text-center text-xs text-muted-foreground">A carregar tickets...</div>}
+            {ticketsError && <div className="p-8 text-center text-xs text-offline">Sem acesso aos tickets (auth necessária).</div>}
+            {!ticketsLoading && tickets.length === 0 && (
               <div className="p-8 text-center text-xs text-muted-foreground">Sem tickets registados.</div>
             )}
-            {ticketsQuery.data && ticketsQuery.data.data.length > 0 && (
+            {tickets.length > 0 && (
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground">
                   <tr>
@@ -585,7 +580,7 @@ function AlarmesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {ticketsQuery.data.data.map((t) => (
+                  {tickets.map((t) => (
                     <tr key={t.ticket_id} className="border-t border-border">
                       <td className="px-5 py-3 font-mono text-xs">{t.ticket_id.slice(0, 8)}</td>
                       <td className="px-5 py-3 font-mono text-xs">{t.tower_name}</td>

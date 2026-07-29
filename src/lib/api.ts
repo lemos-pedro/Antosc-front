@@ -521,6 +521,28 @@ export const api = {
     // ou seja exige auth — por isso o 401 que viste nos logs.
     requestPaginated<ApiTicket>("/api/v1/tickets", { query: q, protected: true }),
 
+  // Pagina até trazer TODOS os tickets, não só os primeiros N. Antes disto,
+  // o AlarmsProvider chamava listTickets({ limit: 100 }) uma única vez —
+  // qualquer ticket fora dos 100 mais recentes (created_at desc) ficava
+  // silenciosamente de fora dos exports e do feed de alarmes, incluindo
+  // tickets fechados de períodos anteriores. api.md define limit máximo
+  // de 200 por página, por isso paginamos em vez de pedir tudo de uma vez.
+  fetchAllTickets: async (opts?: { status?: TicketStatus; tower_id?: string }) => {
+    const pageSize = 200;
+    let offset = 0;
+    let all: ApiTicket[] = [];
+    for (;;) {
+      const page = await requestPaginated<ApiTicket>("/api/v1/tickets", {
+        query: { ...opts, limit: pageSize, offset },
+        protected: true,
+      });
+      all = all.concat(page.data);
+      offset += page.data.length;
+      if (page.data.length === 0 || offset >= page.meta.total) break;
+    }
+    return all;
+  },
+
   ackTicket: (ticket_id: string) =>
     request<ApiTicket>(`/api/v1/tickets/${ticket_id}/ack`, {
       method: "POST",
