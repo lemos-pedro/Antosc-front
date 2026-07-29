@@ -326,13 +326,68 @@ function exportToXlsx(
   );
 }
 
-function exportToCsv(rows: SiteExportRow[], fromDate: string, toDate: string) {
-  const data = exportRowsToSheetData(rows);
-  const worksheet = XLSX.utils.json_to_sheet(data);
-  const csv = XLSX.utils.sheet_to_csv(worksheet);
-  // BOM para o Excel reconhecer acentos em UTF-8 corretamente.
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  downloadBlob(blob, `alarmes_${fromDate || "inicio"}_a_${toDate || "hoje"}.csv`);
+function exportToCsv(
+  rows: SiteExportRow[],
+  alarms: Alarm[],
+  tickets: any[],
+  fromDate: string,
+  toDate: string,
+) {
+  const suffix = `${fromDate || "inicio"}_a_${toDate || "hoje"}`;
+
+  // =====================================================
+  // 1. RESUMO DE TICKETS
+  // =====================================================
+
+  const ticketSummary = buildTicketSummary(
+    tickets,
+    fromDate,
+    toDate,
+  );
+
+  const ticketWorksheet = XLSX.utils.json_to_sheet(ticketSummary);
+  const ticketCsv = XLSX.utils.sheet_to_csv(ticketWorksheet);
+
+  downloadBlob(
+    new Blob(["\uFEFF" + ticketCsv], {
+      type: "text/csv;charset=utf-8;",
+    }),
+    `relatorio_${suffix}_resumo_tickets.csv`,
+  );
+
+  // =====================================================
+  // 2. ALARMES POR SITE
+  // =====================================================
+
+  const siteData = exportRowsToSheetData(rows);
+  const siteWorksheet = XLSX.utils.json_to_sheet(siteData);
+  const siteCsv = XLSX.utils.sheet_to_csv(siteWorksheet);
+
+  downloadBlob(
+    new Blob(["\uFEFF" + siteCsv], {
+      type: "text/csv;charset=utf-8;",
+    }),
+    `relatorio_${suffix}_alarmes_por_site.csv`,
+  );
+
+  // =====================================================
+  // 3. TODOS OS ALARMES
+  // =====================================================
+
+  const filteredAlarms = alarms.filter((a) =>
+    isDateInRange(a.date, fromDate, toDate),
+  );
+
+  const alarmData = exportAlarmRows(filteredAlarms);
+  const alarmWorksheet = XLSX.utils.json_to_sheet(alarmData);
+  const alarmCsv = XLSX.utils.sheet_to_csv(alarmWorksheet);
+
+  downloadBlob(
+    new Blob(["\uFEFF" + alarmCsv], {
+      type: "text/csv;charset=utf-8;",
+    }),
+    `relatorio_${suffix}_todos_os_alarmes.csv`,
+  );
 }
 
 function AlarmesPage() {
