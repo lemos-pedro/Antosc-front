@@ -120,6 +120,10 @@ export interface ApiRegion {
 export interface ApiTicket {
   ticket_id: string;
   tower_id: string;
+  // Denormalizado opcionalmente pelo backend (algumas versões incluem o
+  // nome da torre no ticket); quando ausente, o frontend resolve via
+  // towersById — ver toAlarm em api-adapters.ts.
+  tower_name?: string;
   event_id: string;
   status: TicketStatus;
   acknowledged_at?: string;
@@ -163,6 +167,30 @@ export interface ApiError {
   code: string;
   message: string;
   request_id?: string;
+}
+
+// ------------------------------------------------------------------
+// Users & roles (GAP no contrato v0 — roadmap menciona UserHandler /
+// POST /api/v1/users. Endpoints tentados em conformidade; qualquer 404
+// do backend aparece honestamente na UI, nunca simulamos sucesso.)
+// ------------------------------------------------------------------
+export type UserRole =
+  | "admin"
+  | "director_tecnico"
+  | "pca"
+  | "operacoes"
+  | "manutencao"
+  | "engenharia"
+  | "controller_financeiro"
+  | "tecnico_manutencao";
+
+export interface ApiUser {
+  user_id: string;
+  name: string;
+  email: string;
+  role: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 
@@ -579,6 +607,36 @@ export const api = {
   // ---- Energy: Generator (não no contrato v0 — endpoint extra do backend) ----
   getTowerGenerator: (tower_id: string) =>
     request<ApiGeneratorReading>(`/api/v1/towers/${tower_id}/energy/generator`),
+
+  // Registo de gerador no site — payload por confirmar com o handler real
+  // (TODO, à semelhança de createTower/configureSnmp). Erros do backend
+  // (404 enquanto o endpoint não existir) são mostrados na UI.
+  createGenerator: (
+    tower_id: string,
+    body: {
+      name: string;
+      fuel_capacity_l?: number;
+      rated_power_kw?: number;
+    }
+  ) =>
+    request<{ message?: string }>(`/api/v1/towers/${tower_id}/energy/generator`, {
+      method: "POST",
+      body,
+      protected: true,
+    }),
+
+  // ---- Users (GAP no contrato v0) ----
+  listUsers: (q?: { limit?: number; offset?: number }) =>
+    requestPaginated<ApiUser>("/api/v1/users", { query: q }),
+
+  createUser: (body: { name: string; email: string; password: string; role: UserRole }) =>
+    // TODO: confirmar assinatura real do UserHandler — roadmap menciona
+    // POST /api/v1/users ligado ao router, ainda não documentado em api.md.
+    request<ApiUser>("/api/v1/users", {
+      method: "POST",
+      body,
+      protected: true,
+    }),
   
   // ---- SNMP collection (não no contrato v0 — endpoint extra do backend) ----
   triggerSnmpCollect: (tower_id: string) =>

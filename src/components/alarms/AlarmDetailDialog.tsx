@@ -18,8 +18,8 @@ export function AlarmDetailDialog({ alarm, open, onOpenChange }: { alarm: Alarm 
   const { ack, close } = useAlarms();
 
   const towerQuery = useQuery({
-    queryKey: queryKeys.tower(alarm?.torre ?? ""),
-    queryFn: () => api.getTower(alarm!.tower),
+    queryKey: queryKeys.tower(alarm?.towerId ?? ""),
+    queryFn: () => api.getTower(alarm!.towerId),
     enabled: !!alarm && open,
   });
   const regionsQuery = useQuery({

@@ -119,7 +119,7 @@ const eventsQuery = useQuery({
   const torre = towerQuery.data
     ? toUiTower(towerQuery.data, { regions: regionsQuery.data?.data, operators: operatorsQuery.data?.data, latestMetric })
     : null;
-  const torreAlarms = alarms.filter((a) => a.torre === torreId);
+  const torreAlarms = alarms.filter((a) => a.towerId === torreId);
   const torreEquip = torre
     ? [{ id: `${torre.id}-snmp`, tipo: "SNMP Target", torre: torre.id, vendor: torre.vendor, ip: torre.ip, status: torre.status, ultimaManut: torre.ultimaManut }]
     : [];
@@ -175,7 +175,7 @@ const eventsQuery = useQuery({
     );
   }
 
-  const activeAlarmsTotal = active.filter((a) => a.torre === torre.id).length + (torre.activeAlarms ?? 0);
+  const activeAlarmsTotal = active.filter((a) => a.towerId === torre.id).length + (torre.activeAlarms ?? 0);
   const slaKnown = torre.slaStatus !== undefined;
 
   return (
@@ -188,7 +188,7 @@ const eventsQuery = useQuery({
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-semibold text-foreground">{torre.nome}</h1>
+              <h1 className="text-xl font-semibold text-foreground">{torre.name}</h1>
               <span className="text-xs font-mono text-muted-foreground">{torre.id}</span>
               <StatusBadge status={torre.status} />
             </div>
@@ -231,7 +231,7 @@ const eventsQuery = useQuery({
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2"><Building2 className="h-4 w-4 text-azul-2" /> Identificação & localização</h3>
               <dl className="text-xs grid grid-cols-2 gap-y-2">
-                <dt className="text-muted-foreground">Nome</dt><dd className="text-foreground">{torre.nome}</dd>
+                <dt className="text-muted-foreground">Nome</dt><dd className="text-foreground">{torre.name}</dd>
                 <dt className="text-muted-foreground">Tower ID</dt><dd className="font-mono text-foreground">{torre.id}</dd>
                 <dt className="text-muted-foreground">Site ID</dt><dd className="font-mono text-foreground">{fmtStr(torre.siteId)}</dd>
                 <dt className="text-muted-foreground">Site level</dt><dd className="text-foreground">{fmtStr(torre.siteLevel)}</dd>

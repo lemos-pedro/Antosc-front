@@ -96,7 +96,7 @@ export function Topbar() {
                         <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${sevDot[a.severity]}`} />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-foreground">{a.title}</p>
-                          <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{a.torre} · {a.time}</p>
+                          <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{a.towerName} · {a.time}</p>
                         </div>
                       </div>
                     </button>
