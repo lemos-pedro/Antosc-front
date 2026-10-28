@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { errorMessage, queryKeys, toUiTower } from "@/lib/api-adapters";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { ScanPill } from "@/components/common/ScanPill";
 import { TorreDetailModal } from "@/components/dashboard/TorreDetailModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { fmtPct } from "@/lib/format";
 
 export const Route = createFileRoute("/torres")({
@@ -20,9 +22,12 @@ export const Route = createFileRoute("/torres")({
 });
 
 function TorresPage() {
+  const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draft, setDraft] = useState({ name: "", operator_id: "", region_id: "", vendor: "", snmp_version: "v2c" as "v2c" | "v3" });
   const towersQuery = useQuery({
     queryKey: queryKeys.towers,
     queryFn: () => api.listTowers({ limit: 500 }),
