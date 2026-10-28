@@ -120,6 +120,10 @@ export interface ApiRegion {
 export interface ApiTicket {
   ticket_id: string;
   tower_id: string;
+  // Denormalizado opcionalmente pelo backend (algumas versões incluem o
+  // nome da torre no ticket); quando ausente, o frontend resolve via
+  // towersById — ver toAlarm em api-adapters.ts.
+  tower_name?: string;
   event_id: string;
   status: TicketStatus;
   acknowledged_at?: string;
