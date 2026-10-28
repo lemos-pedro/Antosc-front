@@ -172,7 +172,7 @@ export function TorreDetailModal({ torreId, open, onOpenChange }: TorreDetailMod
           <>
             <DialogHeader className="flex items-start justify-between flex-row">
               <div>
-                <DialogTitle className="text-lg">{torre.nome}</DialogTitle>
+                <DialogTitle className="text-lg">{torre.name}</DialogTitle>
                 <p className="text-xs text-muted-foreground mt-1">{torre.id}</p>
               </div>
               <StatusBadge status={torre.status} />

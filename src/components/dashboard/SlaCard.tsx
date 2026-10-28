@@ -20,10 +20,12 @@ export function SlaCard() {
   });
   const uiTowers = (towersQuery.data?.data ?? []).map((tower) => toUiTower(tower, { regions: regionsQuery.data?.data }));
   const slaRegioes = buildRegionStats(uiTowers, regionsQuery.data?.data);
-  const slaGlobal = slaQuery.data?.availability ?? 0;
+  // ApiSlaGlobal v0 só garante availability_percent e affected_towers —
+  // as contagens offline/degraded vêm do inventário de sites (real),
+  // nunca de campos que o endpoint não devolve.
+  const slaGlobal = slaQuery.data?.availability_percent ?? 0;
   const slaTorresAfetadas =
-    (slaQuery.data?.offline_sites ?? 0) + (slaQuery.data?.degraded_sites ?? 0) ||
-    uiTowers.filter((tower) => tower.status !== "online").length;
+    slaQuery.data?.affected_towers ?? uiTowers.filter((tower) => tower.status !== "online").length;
   const slaStatus = slaGlobal >= 99.5 ? "critical" : slaGlobal >= 98 ? "ok" : "degraded";
   const slaColor = slaStatus === "critical" ? "text-online" : slaStatus === "ok" ? "text-azul-2" : "text-degraded";
   const slaBg = slaStatus === "critical" ? "bg-online-bg" : slaStatus === "ok" ? "bg-muted" : "bg-degraded-bg";
