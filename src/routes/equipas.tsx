@@ -1,12 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Users, Plus, X, UserPlus, Crown, MapPin, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { Users, Plus, X, UserPlus, Crown, MapPin, Trash2, PersonStanding } from "lucide-react";
+import { api, type UserRole } from "@/lib/api";
 import { errorMessage, queryKeys } from "@/lib/api-adapters";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Administrador",
+  director_tecnico: "Director técnico",
+  pca: "PCA",
+  operacoes: "Operações",
+  manutencao: "Manutenção",
+  engenharia: "Engenharia",
+  controller_financeiro: "Controller financeiro",
+  tecnico_manutencao: "Técnico de manutenção",
+};
+const roleLabel = (role: string) => ROLE_LABELS[role as UserRole] ?? role;
 
 export const Route = createFileRoute("/equipas")({
   head: () => ({ meta: [{ title: "Gestão de Equipas — ANTOSC" }] }),
@@ -64,6 +76,27 @@ function EquipasPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.operators });
       toast.success("Operador apagado");
     },
+  });
+
+  const [tab, setTab] = useState<"operadores" | "utilizadores">("operadores");
+  const [userOpen, setUserOpen] = useState(false);
+  const [userDraft, setUserDraft] = useState<{ name: string; email: string; password: string; role: UserRole }>({ name: "", email: "", password: "", role: "operacoes" });
+
+  // GET /api/v1/users é um GAP do contrato v0 — enquanto o backend não
+  // expõe o UserHandler, o erro real aparece aqui (nunca lista simulada).
+  const usersQuery = useQuery({
+    queryKey: queryKeys.users,
+    queryFn: () => api.listUsers({ limit: 500 }),
+  });
+  const createUserMutation = useMutation({
+    mutationFn: api.createUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users });
+      setUserDraft({ name: "", email: "", password: "", role: "operacoes" });
+      setUserOpen(false);
+      toast.success("Utilizador criado");
+    },
+    onError: (err) => toast.error(errorMessage(err)),
   });
 
   const defaultRegion = regionsQuery.data?.data[0]?.name ?? "—";
