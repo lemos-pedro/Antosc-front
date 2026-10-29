@@ -204,14 +204,15 @@ function Generator({ color }: { color: string }) {
         <cylinderGeometry args={[0.6, 0.6, 1.6, 20]} />
         <meshStandardMaterial color="#4a5a4a" roughness={0.4} />
       </mesh>
-      <mesh position={[0, 0, 0]} visible={false}>
-        <boxGeometry args={[0, 0, 0]} />
+      {/* Faixa de estado (LED do grupo gerador) */}
+      <mesh position={[0, 1.52, 0.3]}>
+        <boxGeometry args={[1.2, 0.06, 0.06]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
       </mesh>
       <mesh position={[0, 0.02, 0]}>
         <boxGeometry args={[3.4, 0.04, 1.8]} />
         <meshStandardMaterial color="#9aa3ad" />
       </mesh>
-      <group visible={false}>{color}</group>
     </group>
   );
 }
