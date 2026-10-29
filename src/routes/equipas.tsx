@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Users, Plus, X, UserPlus, Crown, MapPin, Trash2, PersonStanding } from "lucide-react";
+import { Users, Plus, X, UserPlus, Crown, MapPin, Trash2 } from "lucide-react";
 import { api, type UserRole } from "@/lib/api";
 import { errorMessage, queryKeys } from "@/lib/api-adapters";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
