@@ -164,6 +164,7 @@ export const queryKeys = {
   tower: (id: string) => ["tower", id] as const,
   regions: ["regions"] as const,
   operators: ["operators"] as const,
+  users: ["users"] as const,
   sla: ["sla"] as const,
   tickets: ["tickets"] as const,
   metrics: (towerId?: string) => ["metrics", towerId ?? "all"] as const,
