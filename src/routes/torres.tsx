@@ -40,6 +40,16 @@ function TorresPage() {
     queryKey: queryKeys.operators,
     queryFn: () => api.listOperators({ limit: 500 }),
   });
+  const createMutation = useMutation({
+    mutationFn: api.createTower,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.towers });
+      setCreateOpen(false);
+      setDraft({ name: "", operator_id: "", region_id: "", vendor: "", snmp_version: "v2c" });
+      toast.success("Site criado no inventário");
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
   const torres = useMemo(
     () => (towersQuery.data?.data ?? []).map((tower) => toUiTower(tower, { regions: regionsQuery.data?.data, operators: operatorsQuery.data?.data })),
     [towersQuery.data, regionsQuery.data, operatorsQuery.data],
@@ -61,7 +71,41 @@ function TorresPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <ScanPill />
-        <p className="text-xs text-muted-foreground">{rows.length} de {torres.length} sites</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-muted-foreground">{rows.length} de {torres.length} sites</p>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-azul text-white rounded-md hover:bg-azul-2">
+                <Plus className="h-3 w-3" /> Criar site
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Criar site</DialogTitle></DialogHeader>
+              <div className="space-y-3 text-sm">
+                <Field label="Nome do site"><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="w-full mt-1 px-3 py-2 border border-border rounded bg-background" /></Field>
+                <Field label="Operador (cliente)"><select value={draft.operator_id} onChange={(e) => setDraft({ ...draft, operator_id: e.target.value })} className="w-full mt-1 px-3 py-2 border border-border rounded bg-background">{operatorsQuery.data?.data.map((o) => <option key={o.operator_id} value={o.operator_id}>{o.name}</option>)}</select></Field>
+                <Field label="Região"><select value={draft.region_id} onChange={(e) => setDraft({ ...draft, region_id: e.target.value })} className="w-full mt-1 px-3 py-2 border border-border rounded bg-background">{regionsQuery.data?.data.map((r) => <option key={r.region_id} value={r.region_id}>{r.name}</option>)}</select></Field>
+                <Field label="Vendor"><input value={draft.vendor} onChange={(e) => setDraft({ ...draft, vendor: e.target.value })} placeholder="Huawei, Ericsson…" className="w-full mt-1 px-3 py-2 border border-border rounded bg-background" /></Field>
+                <Field label="SNMP"><select value={draft.snmp_version} onChange={(e) => setDraft({ ...draft, snmp_version: e.target.value as "v2c" | "v3" })} className="w-full mt-1 px-3 py-2 border border-border rounded bg-background"><option value="v2c">v2c</option><option value="v3">v3</option></select></Field>
+              </div>
+              <DialogFooter>
+                <button
+                  onClick={() => {
+                    const operator_id = draft.operator_id || operatorsQuery.data?.data[0]?.operator_id;
+                    const region_id = draft.region_id || regionsQuery.data?.data[0]?.region_id;
+                    if (!operator_id || !region_id) {
+                      toast.error("Operador e região são obrigatórios");
+                      return;
+                    }
+                    createMutation.mutate({ name: draft.name, operator_id, region_id, vendor: draft.vendor, snmp_version: draft.snmp_version });
+                  }}
+                  disabled={!draft.name || !draft.vendor || createMutation.isPending}
+                  className="px-4 py-2 bg-azul text-white rounded text-sm disabled:opacity-50"
+                >{createMutation.isPending ? "A criar…" : "Criar site"}</button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
       {towersQuery.isError && (
         <div className="bg-offline-bg text-offline border border-offline/20 rounded-lg px-4 py-3 text-sm">
