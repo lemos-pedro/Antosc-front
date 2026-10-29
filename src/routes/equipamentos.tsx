@@ -32,7 +32,9 @@ function EquipamentosPage() {
   const [vendor, setVendor] = useState("all");
   const [status, setStatus] = useState("all");
   const [open, setOpen] = useState(false);
+  const [genOpen, setGenOpen] = useState(false);
   const [draft, setDraft] = useState({ nome: "", operator_id: "", region_id: "", vendor: "", snmp_version: "v2c" as "v2c" | "v3" });
+  const [genDraft, setGenDraft] = useState({ tower_id: "", name: "", fuel_capacity_l: "", rated_power_kw: "" });
   const towersQuery = useQuery({
     queryKey: queryKeys.towers,
     queryFn: () => api.listTowers({ limit: 500 }),
@@ -52,6 +54,17 @@ function EquipamentosPage() {
       setOpen(false);
       toast.success("Torre adicionada ao inventário");
     },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+  const genMutation = useMutation({
+    mutationFn: ({ tower_id, body }: { tower_id: string; body: { name: string; fuel_capacity_l?: number; rated_power_kw?: number } }) =>
+      api.createGenerator(tower_id, body),
+    onSuccess: () => {
+      setGenOpen(false);
+      setGenDraft({ tower_id: "", name: "", fuel_capacity_l: "", rated_power_kw: "" });
+      toast.success("Gerador registado no site");
+    },
+    onError: (err) => toast.error(errorMessage(err)),
   });
 
   const torres = useMemo(
@@ -89,7 +102,46 @@ function EquipamentosPage() {
           <Sel value={vendor} onChange={setVendor} options={[["all","Todos os vendors"], ...vendors.map((v) => [v,v] as [string,string])]} />
           <Sel value={status} onChange={setStatus} options={[["all","Todos os estados"],["online","Online"],["degraded","Degradadas"],["offline","Offline"]]} />
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex gap-2">
+          <Dialog open={genOpen} onOpenChange={setGenOpen}>
+            <DialogTrigger asChild>
+              <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-azul text-white rounded-md hover:bg-azul-2">
+                <Fuel className="h-3 w-3" /> Registar gerador
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Registar gerador</DialogTitle></DialogHeader>
+              <div className="space-y-3 text-sm">
+                <Field label="Site">
+                  <select value={genDraft.tower_id} onChange={(e) => setGenDraft({ ...genDraft, tower_id: e.target.value })} className="w-full mt-1 px-3 py-2 border border-border rounded bg-background">
+                    <option value="">Selecionar site…</option>
+                    {torres.map((t) => <option key={t.id} value={t.id}>{t.id} — {t.local}</option>)}
+                  </select>
+                </Field>
+                <Field label="Designação"><input value={genDraft.name} onChange={(e) => setGenDraft({ ...genDraft, name: e.target.value })} placeholder="Gerador-01" className="w-full mt-1 px-3 py-2 border border-border rounded bg-background" /></Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Capacidade combustível (L)"><input type="number" value={genDraft.fuel_capacity_l} onChange={(e) => setGenDraft({ ...genDraft, fuel_capacity_l: e.target.value })} className="w-full mt-1 px-3 py-2 border border-border rounded bg-background" /></Field>
+                  <Field label="Potência nominal (kW)"><input type="number" value={genDraft.rated_power_kw} onChange={(e) => setGenDraft({ ...genDraft, rated_power_kw: e.target.value })} className="w-full mt-1 px-3 py-2 border border-border rounded bg-background" /></Field>
+                </div>
+                <p className="text-[11px] text-muted-foreground">O registo é enviado ao towercore; se o endpoint de registo ainda não existir no backend, o erro é mostrado em vez de gravado localmente.</p>
+              </div>
+              <DialogFooter>
+                <button
+                  disabled={!genDraft.tower_id || !genDraft.name || genMutation.isPending}
+                  onClick={() => genMutation.mutate({
+                    tower_id: genDraft.tower_id,
+                    body: {
+                      name: genDraft.name,
+                      fuel_capacity_l: genDraft.fuel_capacity_l ? Number(genDraft.fuel_capacity_l) : undefined,
+                      rated_power_kw: genDraft.rated_power_kw ? Number(genDraft.rated_power_kw) : undefined,
+                    },
+                  })}
+                  className="px-4 py-2 bg-azul text-white rounded text-sm disabled:opacity-50"
+                >{genMutation.isPending ? "A registar…" : "Registar"}</button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <button className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-azul text-white rounded-md hover:bg-azul-2">
               <Plus className="h-3 w-3" /> Novo equipamento
