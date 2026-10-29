@@ -175,6 +175,7 @@ function EquipamentosPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
       {towersQuery.isError && <div className="bg-offline-bg text-offline border border-offline/20 rounded-lg px-4 py-3 text-sm">{errorMessage(towersQuery.error)}</div>}
       {towersQuery.isLoading && <div className="bg-card border border-border rounded-xl p-10 text-center text-sm text-muted-foreground">A carregar equipamentos...</div>}
