@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Clock, Activity, ShieldCheck, BellRing, Download, MapPin, Plus, FileText, Wrench, AlertOctagon, CheckCircle2, Wifi, Zap, Thermometer, Building2, Radio, CalendarCheck, Battery, Fuel, Droplets, DoorOpen, Flame, Snowflake, Signal, Gauge, Timer, TrendingUp } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { ArrowLeft, Clock, Activity, ShieldCheck, BellRing, Download, MapPin, Plus, FileText, Wrench, AlertOctagon, CheckCircle2, Wifi, Zap, Thermometer, Building2, Radio, CalendarCheck, Battery, Fuel, Droplets, DoorOpen, Flame, Snowflake, Signal, Gauge, Timer, TrendingUp, Camera as CameraIcon, Boxes, History as HistoryIcon } from "lucide-react";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -12,6 +12,9 @@ import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { useAlarms } from "@/lib/alarms-store";
 import { TorreMap } from "@/components/torre/TorreMap";
+import { Site3DPanel } from "@/components/site3d/Site3DPanel";
+import camTorre01 from "@/assets/cameras/cam-torre-01.jpg";
+import camGerador01 from "@/assets/cameras/cam-gerador-01.jpg";
 
 export const Route = createFileRoute("/torres/$torreId")({
   head: ({ params }) => ({ meta: [{ title: `${params.torreId} — ANTOSC` }] }),
@@ -145,13 +148,60 @@ const eventsQuery = useQuery({
   const [manuts, setManuts] = useState<Manutencao[]>([]);
 
   const hash = useRouterState({ select: (s) => s.location.hash });
-  const validTabs = ["overview", "alarms", "events", "maint", "location"] as const;
+  const validTabs = ["overview", "view3d", "alarms", "events", "history", "maint", "location", "cameras"] as const;
   type TabId = typeof validTabs[number];
   const initialTab: TabId = (validTabs as readonly string[]).includes(hash) ? (hash as TabId) : "overview";
   const [tab, setTab] = useState<TabId>(initialTab);
   useEffect(() => {
     if ((validTabs as readonly string[]).includes(hash) && hash !== tab) setTab(hash as TabId);
   }, [hash]);
+
+  // ---- Histórico: período seleccionável, consultas reais (métricas + eventos).
+  // Só correm com a aba Histórico activa para não pesar a página.
+  const [histPeriod, setHistPeriod] = useState<"7" | "30" | "90">("30");
+  const histWindow = useMemo(() => {
+    const to = new Date();
+    const from = new Date(to.getTime() - Number(histPeriod) * 24 * 60 * 60 * 1000);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }, [histPeriod]);
+  const histMetricsQuery = useQuery({
+    queryKey: ["metrics", torreId, histPeriod],
+    queryFn: () => api.listMetrics({ tower_id: torreId, ...histWindow, limit: 500 }),
+    enabled: !!torreId && tab === "history",
+  });
+  const histEventsQuery = useQuery({
+    queryKey: ["tower-events", torreId, histPeriod],
+    queryFn: () => api.listTowerEvents(torreId, { ...histWindow, limit: 500 }),
+    enabled: !!torreId && tab === "history",
+  });
+  const histSeries = useMemo(() => {
+    const metrics = histMetricsQuery.data?.data ?? [];
+    return metrics.slice().reverse().map((metric) => {
+      const mm = metric.metrics ?? {};
+      const v =
+        (typeof mm.battery_soc_pct === "number" ? mm.battery_soc_pct : undefined) ??
+        (typeof mm.battery_soc === "number" ? mm.battery_soc : undefined) ??
+        (typeof mm.mains_voltage_l1_v === "number" ? mm.mains_voltage_l1_v : undefined) ??
+        0;
+      return {
+        dia: new Date(metric.collected_at).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" }),
+        valor: v,
+      };
+    });
+  }, [histMetricsQuery.data]);
+  const histEventBars = useMemo(() => {
+    const byDay = new Map<string, number>();
+    for (const e of histEventsQuery.data?.data ?? []) {
+      const day = new Date(e.occurred_at).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
+      byDay.set(day, (byDay.get(day) ?? 0) + 1);
+    }
+    return Array.from(byDay.entries()).map(([dia, total]) => ({ dia, total }));
+  }, [histEventsQuery.data]);
+  const histSeverity = useMemo(() => {
+    const counts = { critical: 0, warning: 0, info: 0 };
+    for (const e of histEventsQuery.data?.data ?? []) counts[e.severity] += 1;
+    return counts;
+  }, [histEventsQuery.data]);
 
   const [alarmFilter, setAlarmFilter] = useState<"all" | AlarmSeverity>("all");
   const [eventFilter, setEventFilter] = useState<"all" | EventType>("all");
@@ -206,8 +256,11 @@ const eventsQuery = useQuery({
       <Tabs value={tab} onValueChange={(v) => { setTab(v as TabId); if (typeof window !== "undefined") history.replaceState(null, "", `#${v}`); }}>
         <TabsList className="bg-card border border-border">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="view3d">Vista 3D</TabsTrigger>
+          <TabsTrigger value="cameras">Câmeras</TabsTrigger>
           <TabsTrigger value="alarms">Alarmes</TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
+          <TabsTrigger value="history">Histórico</TabsTrigger>
           <TabsTrigger value="maint">Manutenções</TabsTrigger>
           <TabsTrigger value="location">Localização</TabsTrigger>
         </TabsList>
@@ -383,6 +436,35 @@ const eventsQuery = useQuery({
           </div>
         </TabsContent>
 
+        <TabsContent value="view3d" className="mt-4 space-y-3">
+          <Site3DPanel
+            data={{
+              towerId: torre.id,
+              status: torre.status,
+              batterySoc: torre.batterySoc,
+              batterySoh: torre.batterySoh,
+              dcVoltage: torre.batteryVoltage,
+              dcCurrent: torre.current,
+              generatorFuel: torre.generatorFuelLevel,
+              generatorStatus: torre.generatorStatus,
+              signalRssi: torre.signalStrength,
+            }}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Maquete do tipo de site (posições padronizadas). As etiquetas mostram dados reais deste site; "N/A" significa que o towercore ainda não fornece o valor.
+          </p>
+        </TabsContent>
+
+        <TabsContent value="cameras" className="mt-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CameraCard name="Câmera 01 — Torre e vedação" image={camTorre01} />
+            <CameraCard name="Câmera 02 — Gerador e depósito" image={camGerador01} />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Sem feed em tempo real: o towercore ainda não fornece stream das câmaras. As imagens são de demonstração do tipo de site.
+          </p>
+        </TabsContent>
+
         <TabsContent value="alarms" className="space-y-3 mt-4">
           <div className="flex gap-2 flex-wrap">
             {(["all", "critical", "warning", "info"] as const).map((f) => (
@@ -446,6 +528,74 @@ const eventsQuery = useQuery({
                   );
                 })}
               </ol>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><HistoryIcon className="h-4 w-4 text-azul-2" /> Dados históricos</h3>
+            <div className="flex gap-2">
+              {(["7", "30", "90"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setHistPeriod(p)}
+                  className={`px-3 py-1 text-xs rounded-md ${histPeriod === p ? "bg-azul text-white" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}
+                >
+                  {p} dias
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(histMetricsQuery.isError || histEventsQuery.isError) && (
+            <div className="bg-offline-bg text-offline border border-offline/20 rounded-lg px-4 py-3 text-sm">
+              {errorMessage(histMetricsQuery.error ?? histEventsQuery.error)}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <MetricCard icon={<AlertOctagon className="h-[18px] w-[18px] text-offline" />} iconBg="#FEE2E2" label="Eventos críticos" value={histSeverity.critical} />
+            <MetricCard icon={<BellRing className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="Avisos" value={histSeverity.warning} />
+            <MetricCard icon={<Activity className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Info" value={histSeverity.info} />
+            <MetricCard icon={<Gauge className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Métricas coletadas" value={histMetricsQuery.data?.data.length ?? 0} />
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-5">
+            <h4 className="text-xs font-semibold text-foreground mb-3">Métricas no período ({histPeriod} dias)</h4>
+            {histSeries.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                Sem métricas coletadas pelo towercore neste período.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={histSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9f0" />
+                  <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="valor" stroke="#2A5298" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-5">
+            <h4 className="text-xs font-semibold text-foreground mb-3">Eventos por dia</h4>
+            {histEventBars.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                Sem eventos registados neste período.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={histEventBars}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9f0" />
+                  <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="total" fill="#2A5298" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </div>
         </TabsContent>
@@ -542,6 +692,22 @@ const eventsQuery = useQuery({
           </div>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function CameraCard({ name, image }: { name: string; image: string }) {
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="relative">
+        <img src={image} alt={name} loading="lazy" width={1280} height={720} className="w-full h-56 object-cover" />
+        <span className="absolute top-2 left-2 text-[10px] font-mono bg-black/60 text-white px-2 py-0.5 rounded">
+          SEM FEED · DEMO
+        </span>
+      </div>
+      <div className="px-4 py-3 text-xs font-medium text-foreground flex items-center gap-2">
+        <CameraIcon className="h-3.5 w-3.5 text-azul-2" /> {name}
+      </div>
     </div>
   );
 }
