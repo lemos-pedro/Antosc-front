@@ -256,8 +256,11 @@ const eventsQuery = useQuery({
       <Tabs value={tab} onValueChange={(v) => { setTab(v as TabId); if (typeof window !== "undefined") history.replaceState(null, "", `#${v}`); }}>
         <TabsList className="bg-card border border-border">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="view3d">Vista 3D</TabsTrigger>
+          <TabsTrigger value="cameras">Câmeras</TabsTrigger>
           <TabsTrigger value="alarms">Alarmes</TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
+          <TabsTrigger value="history">Histórico</TabsTrigger>
           <TabsTrigger value="maint">Manutenções</TabsTrigger>
           <TabsTrigger value="location">Localização</TabsTrigger>
         </TabsList>
@@ -431,6 +434,35 @@ const eventsQuery = useQuery({
               </tbody>
             </table>
           </div>
+        </TabsContent>
+
+        <TabsContent value="view3d" className="mt-4 space-y-3">
+          <Site3DPanel
+            data={{
+              towerId: torre.id,
+              status: torre.status,
+              batterySoc: torre.batterySoc,
+              batterySoh: torre.batterySoh,
+              dcVoltage: torre.batteryVoltage,
+              dcCurrent: torre.current,
+              generatorFuel: torre.generatorFuelLevel,
+              generatorStatus: torre.generatorStatus,
+              signalRssi: torre.signalStrength,
+            }}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Maquete do tipo de site (posições padronizadas). As etiquetas mostram dados reais deste site; "N/A" significa que o towercore ainda não fornece o valor.
+          </p>
+        </TabsContent>
+
+        <TabsContent value="cameras" className="mt-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CameraCard name="Câmera 01 — Torre e vedação" image={camTorre01} />
+            <CameraCard name="Câmera 02 — Gerador e depósito" image={camGerador01} />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Sem feed em tempo real: o towercore ainda não fornece stream das câmaras. As imagens são de demonstração do tipo de site.
+          </p>
         </TabsContent>
 
         <TabsContent value="alarms" className="space-y-3 mt-4">
