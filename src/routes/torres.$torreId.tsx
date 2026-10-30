@@ -532,6 +532,74 @@ const eventsQuery = useQuery({
           </div>
         </TabsContent>
 
+        <TabsContent value="history" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><HistoryIcon className="h-4 w-4 text-azul-2" /> Dados históricos</h3>
+            <div className="flex gap-2">
+              {(["7", "30", "90"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setHistPeriod(p)}
+                  className={`px-3 py-1 text-xs rounded-md ${histPeriod === p ? "bg-azul text-white" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}
+                >
+                  {p} dias
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(histMetricsQuery.isError || histEventsQuery.isError) && (
+            <div className="bg-offline-bg text-offline border border-offline/20 rounded-lg px-4 py-3 text-sm">
+              {errorMessage(histMetricsQuery.error ?? histEventsQuery.error)}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <MetricCard icon={<AlertOctagon className="h-[18px] w-[18px] text-offline" />} iconBg="#FEE2E2" label="Eventos críticos" value={histSeverity.critical} />
+            <MetricCard icon={<BellRing className="h-[18px] w-[18px] text-degraded" />} iconBg="#FEF3C7" label="Avisos" value={histSeverity.warning} />
+            <MetricCard icon={<Activity className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Info" value={histSeverity.info} />
+            <MetricCard icon={<Gauge className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Métricas coletadas" value={histMetricsQuery.data?.data.length ?? 0} />
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-5">
+            <h4 className="text-xs font-semibold text-foreground mb-3">Métricas no período ({histPeriod} dias)</h4>
+            {histSeries.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                Sem métricas coletadas pelo towercore neste período.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={histSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9f0" />
+                  <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="valor" stroke="#2A5298" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-5">
+            <h4 className="text-xs font-semibold text-foreground mb-3">Eventos por dia</h4>
+            {histEventBars.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                Sem eventos registados neste período.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={histEventBars}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9f0" />
+                  <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="total" fill="#2A5298" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </TabsContent>
+
         <TabsContent value="maint" className="space-y-3 mt-4">
           <div className="flex justify-end">
             <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
