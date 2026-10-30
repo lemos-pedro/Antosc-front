@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Clock, Activity, ShieldCheck, BellRing, Download, MapPin, Plus, FileText, Wrench, AlertOctagon, CheckCircle2, Wifi, Zap, Thermometer, Building2, Radio, CalendarCheck, Battery, Fuel, Droplets, DoorOpen, Flame, Snowflake, Signal, Gauge, Timer, TrendingUp } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { ArrowLeft, Clock, Activity, ShieldCheck, BellRing, Download, MapPin, Plus, FileText, Wrench, AlertOctagon, CheckCircle2, Wifi, Zap, Thermometer, Building2, Radio, CalendarCheck, Battery, Fuel, Droplets, DoorOpen, Flame, Snowflake, Signal, Gauge, Timer, TrendingUp, Camera as CameraIcon, Boxes, History as HistoryIcon } from "lucide-react";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -12,6 +12,9 @@ import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { useAlarms } from "@/lib/alarms-store";
 import { TorreMap } from "@/components/torre/TorreMap";
+import { Site3DPanel } from "@/components/site3d/Site3DPanel";
+import camTorre01 from "@/assets/cameras/cam-torre-01.jpg";
+import camGerador01 from "@/assets/cameras/cam-gerador-01.jpg";
 
 export const Route = createFileRoute("/torres/$torreId")({
   head: ({ params }) => ({ meta: [{ title: `${params.torreId} — ANTOSC` }] }),
