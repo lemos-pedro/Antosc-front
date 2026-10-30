@@ -695,3 +695,19 @@ const eventsQuery = useQuery({
     </div>
   );
 }
+
+function CameraCard({ name, image }: { name: string; image: string }) {
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="relative">
+        <img src={image} alt={name} loading="lazy" width={1280} height={720} className="w-full h-56 object-cover" />
+        <span className="absolute top-2 left-2 text-[10px] font-mono bg-black/60 text-white px-2 py-0.5 rounded">
+          SEM FEED · DEMO
+        </span>
+      </div>
+      <div className="px-4 py-3 text-xs font-medium text-foreground flex items-center gap-2">
+        <CameraIcon className="h-3.5 w-3.5 text-azul-2" /> {name}
+      </div>
+    </div>
+  );
+}
