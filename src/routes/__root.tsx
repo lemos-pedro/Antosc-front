@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -46,6 +47,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     </div>
   );
 }
+
+// A versão actual do router exige errorComponent como componente lazy.
+const LazyErrorComponent = lazy(() => Promise.resolve({ default: ErrorComponent }));
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
