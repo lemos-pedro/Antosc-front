@@ -9,50 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TorresRouteImport } from './routes/torres'
-import { Route as RelatoriosRouteImport } from './routes/relatorios'
-import { Route as RecuperarPasswordRouteImport } from './routes/recuperar-password'
-import { Route as MapaRouteImport } from './routes/mapa'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as EquipasRouteImport } from './routes/equipas'
-import { Route as EquipamentosRouteImport } from './routes/equipamentos'
-import { Route as AlarmesRouteImport } from './routes/alarmes'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AlarmesRouteImport } from './routes/alarmes'
+import { Route as EquipamentosRouteImport } from './routes/equipamentos'
+import { Route as EquipasRouteImport } from './routes/equipas'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MapaRouteImport } from './routes/mapa'
+import { Route as RecuperarPasswordRouteImport } from './routes/recuperar-password'
+import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as TorresRouteImport } from './routes/torres'
 import { Route as TorresTorreIdRouteImport } from './routes/torres.$torreId'
 
-const TorresRoute = TorresRouteImport.update({
-  id: '/torres',
-  path: '/torres',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RelatoriosRoute = RelatoriosRouteImport.update({
-  id: '/relatorios',
-  path: '/relatorios',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RecuperarPasswordRoute = RecuperarPasswordRouteImport.update({
-  id: '/recuperar-password',
-  path: '/recuperar-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MapaRoute = MapaRouteImport.update({
-  id: '/mapa',
-  path: '/mapa',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EquipasRoute = EquipasRouteImport.update({
-  id: '/equipas',
-  path: '/equipas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EquipamentosRoute = EquipamentosRouteImport.update({
-  id: '/equipamentos',
-  path: '/equipamentos',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AlarmesRoute = AlarmesRouteImport.update({
@@ -60,9 +30,39 @@ const AlarmesRoute = AlarmesRouteImport.update({
   path: '/alarmes',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const EquipamentosRoute = EquipamentosRouteImport.update({
+  id: '/equipamentos',
+  path: '/equipamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EquipasRoute = EquipasRouteImport.update({
+  id: '/equipas',
+  path: '/equipas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapaRoute = MapaRouteImport.update({
+  id: '/mapa',
+  path: '/mapa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecuperarPasswordRoute = RecuperarPasswordRouteImport.update({
+  id: '/recuperar-password',
+  path: '/recuperar-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RelatoriosRoute = RelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TorresRoute = TorresRouteImport.update({
+  id: '/torres',
+  path: '/torres',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TorresTorreIdRoute = TorresTorreIdRouteImport.update({
@@ -161,53 +161,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/torres': {
-      id: '/torres'
-      path: '/torres'
-      fullPath: '/torres'
-      preLoaderRoute: typeof TorresRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/relatorios': {
-      id: '/relatorios'
-      path: '/relatorios'
-      fullPath: '/relatorios'
-      preLoaderRoute: typeof RelatoriosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/recuperar-password': {
-      id: '/recuperar-password'
-      path: '/recuperar-password'
-      fullPath: '/recuperar-password'
-      preLoaderRoute: typeof RecuperarPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mapa': {
-      id: '/mapa'
-      path: '/mapa'
-      fullPath: '/mapa'
-      preLoaderRoute: typeof MapaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/equipas': {
-      id: '/equipas'
-      path: '/equipas'
-      fullPath: '/equipas'
-      preLoaderRoute: typeof EquipasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/equipamentos': {
-      id: '/equipamentos'
-      path: '/equipamentos'
-      fullPath: '/equipamentos'
-      preLoaderRoute: typeof EquipamentosRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/alarmes': {
@@ -217,11 +175,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AlarmesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/equipamentos': {
+      id: '/equipamentos'
+      path: '/equipamentos'
+      fullPath: '/equipamentos'
+      preLoaderRoute: typeof EquipamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/equipas': {
+      id: '/equipas'
+      path: '/equipas'
+      fullPath: '/equipas'
+      preLoaderRoute: typeof EquipasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mapa': {
+      id: '/mapa'
+      path: '/mapa'
+      fullPath: '/mapa'
+      preLoaderRoute: typeof MapaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recuperar-password': {
+      id: '/recuperar-password'
+      path: '/recuperar-password'
+      fullPath: '/recuperar-password'
+      preLoaderRoute: typeof RecuperarPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/relatorios': {
+      id: '/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof RelatoriosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/torres': {
+      id: '/torres'
+      path: '/torres'
+      fullPath: '/torres'
+      preLoaderRoute: typeof TorresRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/torres/$torreId': {
