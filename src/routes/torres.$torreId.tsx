@@ -118,25 +118,6 @@ const eventsQuery = useQuery({
   enabled: !!torreId,
 });
 
-  // ---- Histórico: período seleccionável, consultas reais (métricas + eventos).
-  // As consultas só correm com a aba Histórico activa para não pesar a página.
-  const [histPeriod, setHistPeriod] = useState<"7" | "30" | "90">("30");
-  const histWindow = useMemo(() => {
-    const to = new Date();
-    const from = new Date(to.getTime() - Number(histPeriod) * 24 * 60 * 60 * 1000);
-    return { from: from.toISOString(), to: to.toISOString() };
-  }, [histPeriod]);
-  const histMetricsQuery = useQuery({
-    queryKey: ["metrics", torreId, histPeriod],
-    queryFn: () => api.listMetrics({ tower_id: torreId, ...histWindow, limit: 500 }),
-    enabled: !!torreId && tab === "history",
-  });
-  const histEventsQuery = useQuery({
-    queryKey: ["tower-events", torreId, histPeriod],
-    queryFn: () => api.listTowerEvents(torreId, { ...histWindow, limit: 500 }),
-    enabled: !!torreId && tab === "history",
-  });
-
   const latestMetric = metricsQuery.data?.data[0];
   const torre = towerQuery.data
     ? toUiTower(towerQuery.data, { regions: regionsQuery.data?.data, operators: operatorsQuery.data?.data, latestMetric })
@@ -174,6 +155,53 @@ const eventsQuery = useQuery({
   useEffect(() => {
     if ((validTabs as readonly string[]).includes(hash) && hash !== tab) setTab(hash as TabId);
   }, [hash]);
+
+  // ---- Histórico: período seleccionável, consultas reais (métricas + eventos).
+  // Só correm com a aba Histórico activa para não pesar a página.
+  const [histPeriod, setHistPeriod] = useState<"7" | "30" | "90">("30");
+  const histWindow = useMemo(() => {
+    const to = new Date();
+    const from = new Date(to.getTime() - Number(histPeriod) * 24 * 60 * 60 * 1000);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }, [histPeriod]);
+  const histMetricsQuery = useQuery({
+    queryKey: ["metrics", torreId, histPeriod],
+    queryFn: () => api.listMetrics({ tower_id: torreId, ...histWindow, limit: 500 }),
+    enabled: !!torreId && tab === "history",
+  });
+  const histEventsQuery = useQuery({
+    queryKey: ["tower-events", torreId, histPeriod],
+    queryFn: () => api.listTowerEvents(torreId, { ...histWindow, limit: 500 }),
+    enabled: !!torreId && tab === "history",
+  });
+  const histSeries = useMemo(() => {
+    const metrics = histMetricsQuery.data?.data ?? [];
+    return metrics.slice().reverse().map((metric) => {
+      const mm = metric.metrics ?? {};
+      const v =
+        (typeof mm.battery_soc_pct === "number" ? mm.battery_soc_pct : undefined) ??
+        (typeof mm.battery_soc === "number" ? mm.battery_soc : undefined) ??
+        (typeof mm.mains_voltage_l1_v === "number" ? mm.mains_voltage_l1_v : undefined) ??
+        0;
+      return {
+        dia: new Date(metric.collected_at).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" }),
+        valor: v,
+      };
+    });
+  }, [histMetricsQuery.data]);
+  const histEventBars = useMemo(() => {
+    const byDay = new Map<string, number>();
+    for (const e of histEventsQuery.data?.data ?? []) {
+      const day = new Date(e.occurred_at).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
+      byDay.set(day, (byDay.get(day) ?? 0) + 1);
+    }
+    return Array.from(byDay.entries()).map(([dia, total]) => ({ dia, total }));
+  }, [histEventsQuery.data]);
+  const histSeverity = useMemo(() => {
+    const counts = { critical: 0, warning: 0, info: 0 };
+    for (const e of histEventsQuery.data?.data ?? []) counts[e.severity] += 1;
+    return counts;
+  }, [histEventsQuery.data]);
 
   const [alarmFilter, setAlarmFilter] = useState<"all" | AlarmSeverity>("all");
   const [eventFilter, setEventFilter] = useState<"all" | EventType>("all");
