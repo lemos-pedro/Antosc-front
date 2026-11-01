@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AlarmesRouteImport } from './routes/alarmes'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as EquipamentosRouteImport } from './routes/equipamentos'
 import { Route as EquipasRouteImport } from './routes/equipas'
 import { Route as LoginRouteImport } from './routes/login'
@@ -28,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const AlarmesRoute = AlarmesRouteImport.update({
   id: '/alarmes',
   path: '/alarmes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EquipamentosRoute = EquipamentosRouteImport.update({
@@ -74,6 +80,7 @@ const TorresTorreIdRoute = TorresTorreIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/alarmes': typeof AlarmesRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/equipamentos': typeof EquipamentosRoute
   '/equipas': typeof EquipasRoute
   '/login': typeof LoginRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/alarmes': typeof AlarmesRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/equipamentos': typeof EquipamentosRoute
   '/equipas': typeof EquipasRoute
   '/login': typeof LoginRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/alarmes': typeof AlarmesRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/equipamentos': typeof EquipamentosRoute
   '/equipas': typeof EquipasRoute
   '/login': typeof LoginRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/alarmes'
+    | '/configuracoes'
     | '/equipamentos'
     | '/equipas'
     | '/login'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/alarmes'
+    | '/configuracoes'
     | '/equipamentos'
     | '/equipas'
     | '/login'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/alarmes'
+    | '/configuracoes'
     | '/equipamentos'
     | '/equipas'
     | '/login'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AlarmesRoute: typeof AlarmesRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRoute
   EquipamentosRoute: typeof EquipamentosRoute
   EquipasRoute: typeof EquipasRoute
   LoginRoute: typeof LoginRoute
@@ -173,6 +186,13 @@ declare module '@tanstack/react-router' {
       path: '/alarmes'
       fullPath: '/alarmes'
       preLoaderRoute: typeof AlarmesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/equipamentos': {
@@ -248,6 +268,7 @@ const TorresRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AlarmesRoute: AlarmesRoute,
+  ConfiguracoesRoute: ConfiguracoesRoute,
   EquipamentosRoute: EquipamentosRoute,
   EquipasRoute: EquipasRoute,
   LoginRoute: LoginRoute,
