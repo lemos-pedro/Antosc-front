@@ -1,5 +1,11 @@
 import type { ApiEvent, ApiMetric, ApiTower } from "@/lib/api";
-import { formatDateTimeUtc } from "./export-format";
+
+function formatDateTimeUtc(value: string | undefined): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+}
 
 /**
  * Exportação de dados — geração 100% client-side a partir dos dados já
