@@ -264,7 +264,7 @@ function ConfiguracoesPage() {
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
               <h3 className="text-sm font-semibold flex items-center gap-2"><Archive className="h-4 w-4 text-azul-2" /> Exportações</h3>
-              <p className="text-xs text-muted-foreground mt-1">CSV gerado a partir dos dados reais carregados da API — sem dados fabricated.</p>
+              <p className="text-xs text-muted-foreground mt-1">CSV gerado a partir dos dados reais carregados da API — sem valores inventados.</p>
             </div>
             <div className="divide-y divide-border">
               <ExportRow
