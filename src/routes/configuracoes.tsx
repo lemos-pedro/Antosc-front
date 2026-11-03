@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { api, API_BASE_URL } from "@/lib/api";
+import { api, auth, API_BASE_URL } from "@/lib/api";
 import { errorMessage, queryKeys } from "@/lib/api-adapters";
 import { useAuth } from "@/lib/auth";
 import { towersCsv, ticketsCsv, timestampName, downloadText } from "@/lib/export";
@@ -148,7 +148,7 @@ function ConfiguracoesPage() {
               <dt className="text-muted-foreground">Utilizador</dt><dd className="text-foreground">{user?.name ?? "—"}</dd>
               <dt className="text-muted-foreground">Email</dt><dd className="font-mono text-foreground">{user?.email ?? "—"}</dd>
               <dt className="text-muted-foreground">Autenticação</dt>
-              <dd className="text-foreground">{api.token ? "Token da API (towercore)" : "Modo demonstração"}</dd>
+              <dd className="text-foreground">{auth.token ? "Token da API (towercore)" : "Modo demonstração"}</dd>
             </dl>
             <p className="text-[11px] text-muted-foreground">
               Em modo demonstração os dados escritos não chegam ao backend; os exports continuam a usar apenas dados reais carregados.
