@@ -510,8 +510,20 @@ const eventsQuery = useQuery({
               ))}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => toast.success("Histórico exportado em PDF")} className="text-xs inline-flex items-center gap-1 px-3 py-1 bg-card border border-border rounded-md hover:bg-muted"><Download className="h-3 w-3" /> PDF</button>
-              <button onClick={() => toast.success("Histórico exportado em CSV")} className="text-xs inline-flex items-center gap-1 px-3 py-1 bg-card border border-border rounded-md hover:bg-muted"><FileText className="h-3 w-3" /> CSV</button>
+              <button
+                onClick={() => {
+                  const data = eventsQuery.data?.data ?? [];
+                  if (data.length === 0) {
+                    toast.error("Sem eventos para exportar");
+                    return;
+                  }
+                  downloadText(eventsCsv(data), timestampName(`eventos-${torreId}`, "csv"));
+                  toast.success(`${data.length} eventos exportados em CSV`);
+                }}
+                className="text-xs inline-flex items-center gap-1 px-3 py-1 bg-card border border-border rounded-md hover:bg-muted"
+              >
+                <FileText className="h-3 w-3" /> CSV
+              </button>
             </div>
           </div>
           <div className="bg-card border border-border rounded-xl p-5">
@@ -565,22 +577,103 @@ const eventsQuery = useQuery({
             <MetricCard icon={<Gauge className="h-[18px] w-[18px] text-azul-2" />} iconBg="#EFF6FF" label="Métricas coletadas" value={histMetricsQuery.data?.data.length ?? 0} />
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-5">
-            <h4 className="text-xs font-semibold text-foreground mb-3">Métricas no período ({histPeriod} dias)</h4>
-            {histSeries.length === 0 ? (
+          {/* Histórico por métrica — uma série por cada dado coletado, com
+              estatísticas e exportação. As chaves vêm dos dados reais. */}
+          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-xs font-semibold text-foreground">
+                {histMetricKeys.length > 0
+                  ? `Histórico por métrica · ${histMetricKeys.length} séries · ${histPeriod} dias`
+                  : `Métricas no período (${histPeriod} dias)`}
+              </h4>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const data = histMetricsQuery.data?.data ?? [];
+                    if (data.length === 0) {
+                      toast.error("Sem coletas para exportar neste período");
+                      return;
+                    }
+                    downloadText(metricsHistoryCsv(data, histMetricKeys), timestampName(`historico-metricas-${torreId}`, "csv"));
+                    toast.success(`${data.length} coletas exportadas em CSV`);
+                  }}
+                  className="text-xs inline-flex items-center gap-1 px-3 py-1 bg-card border border-border rounded-md hover:bg-muted"
+                >
+                  <FileText className="h-3 w-3" /> CSV métricas
+                </button>
+                <button
+                  onClick={() => {
+                    const data = histEventsQuery.data?.data ?? [];
+                    if (data.length === 0) {
+                      toast.error("Sem eventos para exportar neste período");
+                      return;
+                    }
+                    downloadText(eventsCsv(data), timestampName(`eventos-${torreId}`, "csv"));
+                    toast.success(`${data.length} eventos exportados em CSV`);
+                  }}
+                  className="text-xs inline-flex items-center gap-1 px-3 py-1 bg-card border border-border rounded-md hover:bg-muted"
+                >
+                  <Download className="h-3 w-3" /> CSV eventos
+                </button>
+              </div>
+            </div>
+
+            {histMetricKeys.length === 0 ? (
               <div className="py-6 text-center text-xs text-muted-foreground">
                 Sem métricas coletadas pelo towercore neste período.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={histSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e9f0" />
-                  <XAxis dataKey="dia" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="valor" stroke="#2A5298" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+              <>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={histMetricKey ?? ""}
+                    onChange={(e) => setHistMetricKey(e.target.value)}
+                    className="text-xs px-3 py-1.5 border border-border rounded bg-background min-w-[260px]"
+                  >
+                    {histMetricKeys.map((k) => {
+                      const d = metricDef(k);
+                      return <option key={k} value={k}>{d.label}{d.unit ? ` (${d.unit})` : ""}</option>;
+                    })}
+                  </select>
+                  <span className="text-[11px] font-mono text-muted-foreground">{histMetricKey}</span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {[
+                    { label: "Último valor", v: histStats.latest },
+                    { label: "Mínimo", v: histStats.min },
+                    { label: "Máximo", v: histStats.max },
+                    { label: "Média", v: histStats.avg },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-muted/40 rounded-lg px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</div>
+                      <div className="text-lg font-semibold font-mono text-foreground">
+                        {s.v === null ? NO_DATA : `${s.v.toFixed(histDef?.decimals ?? 1)}${histDef?.unit ?? ""}`}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="bg-muted/40 rounded-lg px-3 py-2">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Coletas com valor</div>
+                    <div className="text-lg font-semibold font-mono text-foreground">{histStats.count}</div>
+                  </div>
+                </div>
+
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={histPoints}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e9f0" />
+                    <XAxis dataKey="t" tick={{ fontSize: 10 }} />
+                    <YAxis
+                      domain={["auto", "auto"]}
+                      tickFormatter={(v: number) => `${v}${histDef?.unit ?? ""}`}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <Tooltip
+                      formatter={(v) => (typeof v === "number" ? `${v.toFixed(histDef?.decimals ?? 1)}${histDef?.unit ?? ""}` : String(v))}
+                    />
+                    <Line type="monotone" dataKey="valor" connectNulls={false} stroke="#2A5298" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
             )}
           </div>
 
