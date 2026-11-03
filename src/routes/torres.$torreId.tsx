@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import { api, type AlarmSeverity, type EventType } from "@/lib/api";
 import { errorMessage, queryKeys, toEvent, toUiTower } from "@/lib/api-adapters";
+import { metricDef, metricKeysOf, seriesForKey, statsForPoint } from "@/lib/metric-catalog";
+import { eventsCsv, metricsHistoryCsv, timestampName, downloadText } from "@/lib/export";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { useAlarms } from "@/lib/alarms-store";
@@ -174,21 +176,23 @@ const eventsQuery = useQuery({
     queryFn: () => api.listTowerEvents(torreId, { ...histWindow, limit: 500 }),
     enabled: !!torreId && tab === "history",
   });
-  const histSeries = useMemo(() => {
-    const metrics = histMetricsQuery.data?.data ?? [];
-    return metrics.slice().reverse().map((metric) => {
-      const mm = metric.metrics ?? {};
-      const v =
-        (typeof mm.battery_soc_pct === "number" ? mm.battery_soc_pct : undefined) ??
-        (typeof mm.battery_soc === "number" ? mm.battery_soc : undefined) ??
-        (typeof mm.mains_voltage_l1_v === "number" ? mm.mains_voltage_l1_v : undefined) ??
-        0;
-      return {
-        dia: new Date(metric.collected_at).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" }),
-        valor: v,
-      };
-    });
-  }, [histMetricsQuery.data]);
+  // ---- Histórico por métrica: descobre as chaves realmente presentes nas
+  // coletas devolvidas pelo towercore e deixa escolher uma para ver a série,
+  // estatísticas (último/mín/máx/média) e exportar em CSV. Nada de chaves
+  // fixas a esconder o que o site não reporta.
+  const [histMetricKey, setHistMetricKey] = useState<string | null>(null);
+  const histMetricKeys = useMemo(() => metricKeysOf(histMetricsQuery.data?.data ?? []), [histMetricsQuery.data]);
+  useEffect(() => {
+    if (histMetricKeys.length > 0 && (!histMetricKey || !histMetricKeys.includes(histMetricKey))) {
+      setHistMetricKey(histMetricKeys[0]);
+    }
+  }, [histMetricKeys, histMetricKey]);
+  const histPoints = useMemo(
+    () => (histMetricKey ? seriesForKey(histMetricsQuery.data?.data ?? [], histMetricKey) : []),
+    [histMetricsQuery.data, histMetricKey],
+  );
+  const histStats = useMemo(() => statsForPoint(histPoints), [histPoints]);
+  const histDef = histMetricKey ? metricDef(histMetricKey) : null;
   const histEventBars = useMemo(() => {
     const byDay = new Map<string, number>();
     for (const e of histEventsQuery.data?.data ?? []) {
