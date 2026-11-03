@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { api } from "@/lib/api";
+import { api, auth, API_BASE_URL } from "@/lib/api";
 import { errorMessage, queryKeys } from "@/lib/api-adapters";
 import { useAuth } from "@/lib/auth";
 import { towersCsv, ticketsCsv, timestampName, downloadText } from "@/lib/export";
@@ -148,7 +148,7 @@ function ConfiguracoesPage() {
               <dt className="text-muted-foreground">Utilizador</dt><dd className="text-foreground">{user?.name ?? "—"}</dd>
               <dt className="text-muted-foreground">Email</dt><dd className="font-mono text-foreground">{user?.email ?? "—"}</dd>
               <dt className="text-muted-foreground">Autenticação</dt>
-              <dd className="text-foreground">{api.token ? "Token da API (towercore)" : "Modo demonstração"}</dd>
+              <dd className="text-foreground">{auth.token ? "Token da API (towercore)" : "Modo demonstração"}</dd>
             </dl>
             <p className="text-[11px] text-muted-foreground">
               Em modo demonstração os dados escritos não chegam ao backend; os exports continuam a usar apenas dados reais carregados.
@@ -159,7 +159,7 @@ function ConfiguracoesPage() {
             <dl className="text-xs grid grid-cols-2 gap-y-2">
               <dt className="text-muted-foreground">Sistema</dt><dd className="text-foreground">ANTOSC TOWERCORE</dd>
               <dt className="text-muted-foreground">Versão UI</dt><dd className="font-mono text-foreground">v0.1.45</dd>
-              <dt className="text-muted-foreground">API base</dt><dd className="font-mono text-foreground break-all">{new URL(api.healthV1.length ? import.meta.env.VITE_API_BASE_URL || "https://careless-deplored-lure.ngrok-free.dev" : "https://careless-deplored-lure.ngrok-free.dev").origin}</dd>
+              <dt className="text-muted-foreground">API base</dt><dd className="font-mono text-foreground break-all">{API_BASE_URL}</dd>
               <dt className="text-muted-foreground">Fuso horário</dt><dd className="text-foreground">Africa/Luanda (UTC+1)</dd>
             </dl>
           </div>
@@ -223,7 +223,7 @@ function ConfiguracoesPage() {
             <div className="bg-card border border-border rounded-xl p-5 space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2"><Database className="h-4 w-4 text-azul-2" /> Retenção de histórico</h3>
               <p className="text-xs text-muted-foreground">
-                A retenção de métricas e eventos é gerida pelo towercore. A UI respeita ex MUSTamente o que o backend devolve: o que não estiver retido, não aparece nos gráficos nem nos exports.
+                A retenção de métricas e eventos é gerida pelo towercore. A UI mostra exactamente o que o backend devolve: o que não estiver retido, não aparece nos gráficos nem nos exports.
               </p>
             </div>
           </div>
@@ -264,7 +264,7 @@ function ConfiguracoesPage() {
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
               <h3 className="text-sm font-semibold flex items-center gap-2"><Archive className="h-4 w-4 text-azul-2" /> Exportações</h3>
-              <p className="text-xs text-muted-foreground mt-1">CSV gerado a partir dos dados reais carregados da API — sem dados fabricated.</p>
+              <p className="text-xs text-muted-foreground mt-1">CSV gerado a partir dos dados reais carregados da API — sem valores inventados.</p>
             </div>
             <div className="divide-y divide-border">
               <ExportRow

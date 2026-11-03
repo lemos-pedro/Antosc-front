@@ -11,3 +11,8 @@
 - [x] Vista 3D do site (React Three Fiber) em /torres/$torreId#view3d
 - [x] Abas Câmeras e Histórico (7/30/90 dias, métricas + eventos reais) no detalhe do site
 - [x] Erros TS de campos renomeados corrigidos; atualização de segurança dos pacotes TanStack
+
+## Concluído (2026-11-03)
+- [x] Histórico por métrica no detalhe do site: selector de série (chaves reais do payload), estatísticas último/mín/máx/média, gráfico por período 7/30/90 dias
+- [x] Exportações CSV: métricas e eventos no detalhe do site; centro de exportações em Configurações (inventário de sites, tickets, histórico por site, auditoria via endpoint do towercore)
+- [x] Página Configurações completa (Geral, Monitorização, Integrações, Dados & Exportações, Auditoria com tabela de registos)
