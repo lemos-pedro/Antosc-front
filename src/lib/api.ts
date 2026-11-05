@@ -1,38 +1,25 @@
 /**
  * ANTOSC — towercore API v0
- * Single source of truth for ALL backend endpoints.
- * Spec: http://<host>:8000 — see api.md
+ * Fonte única para todos os endpoints do backend. Spec: api.md
  *
- * REVISÃO (conformidade frontend/backend):
- *  - FIX: login migrado de {username,password} para {email,password}
- *    (backend já usa coluna `email` em `users` e login por email).
- *  - FIX: parsing de erro agora desembrulha o envelope { "error": {...} }
- *    definido em api.md (antes tratava o body inteiro como ApiError).
- *  - FIX: ApiTower.operators — torre pode ter mais de um operador
- *    (relação N:N via site_operators). operator_id/operator continuam
- *    a existir como legado (operador "principal"), mas a lista completa
- *    de operadores presentes na torre vem em `operators[]`.
- *  - FIX: listTowerEvents agora aceita `status` ("open"|"resolved") — o
- *    backend já suporta esse filtro via EventFilter.Status. Sem isto, a
- *    UI de "Alarmes" continuava a mostrar eventos já resolvidos.
- *  - TODO: confirmar com o handler real (não está em api.md v0):
- *      * shape exato da resposta de /api/v1/auth/login (mantém "username"?
- *        passou a "email"? outro campo de perfil?)
- *      * payload de createTower / configureSnmp
- *      * se GET /towers (lista) devolve availability_30d ou só o detalhe
- *  - GAP: não existe nenhum endpoint para Users (roadmap menciona
- *    UserHandler / POST /api/v1/users a ligar ao router — falta aqui).
- *  - GAP: ApiTower não tem campo de localização (lat/lng) — necessário
- *    para o mapa pequeno no dashboard pedido pelo Evaristo.
+ * Alterações desta revisão:
+ *  - Um único `core()` de fetch (antes havia request + requestPaginated duplicados).
+ *  - Endpoints protegidos por DEFAULT (`protected: false` só em health/login).
+ *    Antes, `listTowers`, `listMetrics`, etc. iam sem token -> 401 em loop.
+ *  - Sem token válido, o pedido protegido NÃO sai para a rede: falha logo com 401.
+ *  - 401 tratado num só sítio: limpa sessão, emite evento e redireciona para /login uma vez.
+ *  - Erros são `ApiHttpError` (Error com code/status/request_id) — `err.message` funciona.
+ *  - Token com expiração (`expires_at`) e opção "Lembrar-me" (local vs session storage).
+ *  - Removido o bloco duplicado de Users.
  */
 
 export const API_BASE_URL =
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE_URL) ||
   "https://careless-deplored-lure.ngrok-free.dev";
-  //"localhost:8000";
+// "http://localhost:8000";
 
 // ------------------------------------------------------------------
-// Types (mirror backend payloads)
+// Types
 // ------------------------------------------------------------------
 export type TowerStatus = "online" | "degraded" | "offline";
 export type AlarmSeverity = "info" | "warning" | "critical";
@@ -49,8 +36,8 @@ export interface ApiTower {
   tower_id: string;
   name: string;
   status: TowerStatus;
-  operator_id: string;
-  operators?: ApiTowerOperator[];
+  operator_id: string; // legado: operador "principal"
+  operators?: ApiTowerOperator[]; // N:N via site_operators
   region_id: string;
   vendor: string;
   snmp_enabled: boolean;
@@ -59,8 +46,7 @@ export interface ApiTower {
   latitude?: number;
   longitude?: number;
 
-  // NetEco (Huawei) — bateria e energia DC. Ausentes quando
-  // neteco_enabled=false ou o site não reporta o valor (nunca fabricar).
+  // NetEco (Huawei) — ausentes quando o site não reporta (nunca fabricar).
   dc_output_voltage?: number;
   dc_load_current?: number;
   rectifier_current?: number;
@@ -94,6 +80,7 @@ export interface ApiEvent {
   occurred_at: string;
   created_at: string;
 }
+
 export interface ApiMetric {
   metric_id: string;
   tower_id: string;
@@ -113,17 +100,13 @@ export interface ApiOperator {
 export interface ApiRegion {
   region_id: string;
   name: string;
-  // availability e outras métricas agregadas vêm no GET /{region_id}
-  [k: string]: unknown;
+  [k: string]: unknown; // métricas agregadas vêm no GET /{region_id}
 }
 
 export interface ApiTicket {
   ticket_id: string;
   tower_id: string;
-  // Denormalizado opcionalmente pelo backend (algumas versões incluem o
-  // nome da torre no ticket); quando ausente, o frontend resolve via
-  // towersById — ver toAlarm em api-adapters.ts.
-  tower_name?: string;
+  tower_name?: string; // opcional; senão o frontend resolve via towersById
   event_id: string;
   status: TicketStatus;
   acknowledged_at?: string;
@@ -152,9 +135,7 @@ export interface ApiLoginResponse {
   access_token: string;
   expires_at: string;
   user_id: string;
-  // TODO: confirmar com o handler real se ainda devolve "username"
-  // depois da migração para login por email, ou se passou a "email".
-  username: string;
+  username: string; // TODO: confirmar se passou a "email" no handler real
   role: string;
 }
 
@@ -169,11 +150,6 @@ export interface ApiError {
   request_id?: string;
 }
 
-// ------------------------------------------------------------------
-// Users & roles (GAP no contrato v0 — roadmap menciona UserHandler /
-// POST /api/v1/users. Endpoints tentados em conformidade; qualquer 404
-// do backend aparece honestamente na UI, nunca simulamos sucesso.)
-// ------------------------------------------------------------------
 export type UserRole =
   | "admin"
   | "director_tecnico"
@@ -193,130 +169,102 @@ export interface ApiUser {
   updated_at?: string;
 }
 
+// ------------------------------------------------------------------
+// Erro tipado
+// ------------------------------------------------------------------
+export class ApiHttpError extends Error implements ApiError {
+  code: string;
+  status: number;
+  request_id?: string;
 
-// Backend ainda não devolve {data, meta} no body dos endpoints de listagem —
-// manda o array diretamente e o total no header X-Total-Count (ver api.md
-// vs comportamento real). Reconstruímos aqui o shape que o resto do
-// frontend espera, sem tocar no Go.
-async function requestPaginated<T>(
-  path: string,
-  opts: RequestOpts = {},
-): Promise<Paginated<T>> {
-  const url = new URL(path, API_BASE_URL);
-
-  if (opts.query) {
-    Object.entries(opts.query).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") {
-        url.searchParams.set(k, String(v));
-      }
-    });
+  constructor(status: number, code: string, message: string, request_id?: string) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+    this.code = code;
+    this.request_id = request_id;
   }
-
-  const headers: Record<string, string> = {
-    "ngrok-skip-browser-warning": "true",
-  };
-
-  if (opts.body !== undefined) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  if (opts.protected) {
-    if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
-    if (auth.apiKey) headers["X-API-Key"] = auth.apiKey;
-  }
-
-  const res = await fetch(url.toString(), {
-    method: opts.method ?? "GET",
-    headers,
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-
-  if (!res.ok) {
-    let err: ApiError;
-
-    try {
-      const body = await res.json();
-
-      err =
-        body && typeof body === "object" && "error" in body
-          ? body.error
-          : body;
-    } catch {
-      err = {
-        code: String(res.status),
-        message: res.statusText,
-      };
-    }
-
-    throw err;
-  }
-
-  const body = await res.json();
-
-
-  if (
-    body &&
-    typeof body === "object" &&
-    Array.isArray(body.data)
-  ) {
-    return {
-      data: body.data,
-      meta: body.meta ?? {
-        limit: body.data.length,
-        offset: 0,
-        total: body.data.length,
-      },
-    };
-  }
-
-  // backend devolve apenas um array
-  if (Array.isArray(body)) {
-    const totalHeader = res.headers.get("X-Total-Count");
-
-    const total = totalHeader
-      ? Number(totalHeader)
-      : body.length;
-
-    return {
-      data: body,
-      meta: {
-        limit: Number(opts.query?.limit ?? body.length),
-        offset: Number(opts.query?.offset ?? 0),
-        total,
-      },
-    };
-  }
-
-  throw new Error("Resposta inesperada da API.");
 }
 
+export const isUnauthorized = (e: unknown): boolean =>
+  e instanceof ApiHttpError && e.status === 401;
+
 // ------------------------------------------------------------------
-// Auth state (token + api key kept in memory + localStorage)
+// Auth (token + api key + expiração)
 // ------------------------------------------------------------------
 const TOKEN_KEY = "antosc.api.token";
+const EXPIRES_KEY = "antosc.api.expires_at";
 const APIKEY_KEY = "antosc.api.key";
+export const UNAUTHORIZED_EVENT = "antosc:unauthorized";
+
+const hasStorage = typeof localStorage !== "undefined";
+
+function readStore(key: string): string | null {
+  if (!hasStorage) return null;
+  return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+}
+
+function clearStore(key: string) {
+  if (!hasStorage) return;
+  localStorage.removeItem(key);
+  sessionStorage.removeItem(key);
+}
 
 export const auth = {
-  get token() {
-    return typeof localStorage !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+  /** Token só é devolvido se existir E não tiver expirado. */
+  get token(): string | null {
+    const t = readStore(TOKEN_KEY);
+    if (!t) return null;
+    const exp = readStore(EXPIRES_KEY);
+    if (exp && Date.parse(exp) <= Date.now()) {
+      auth.clear();
+      return null;
+    }
+    return t;
   },
-  set token(v: string | null) {
-    if (typeof localStorage === "undefined") return;
-    if (v) localStorage.setItem(TOKEN_KEY, v);
-    else localStorage.removeItem(TOKEN_KEY);
-  },
-  get apiKey() {
-    return typeof localStorage !== "undefined" ? localStorage.getItem(APIKEY_KEY) : null;
+  get apiKey(): string | null {
+    return readStore(APIKEY_KEY);
   },
   set apiKey(v: string | null) {
-    if (typeof localStorage === "undefined") return;
+    if (!hasStorage) return;
     if (v) localStorage.setItem(APIKEY_KEY, v);
     else localStorage.removeItem(APIKEY_KEY);
   },
+  get isAuthenticated(): boolean {
+    return !!auth.token;
+  },
+  /** remember=true -> localStorage; false -> sessionStorage (some ao fechar o separador). */
+  save(token: string, expiresAt?: string, remember = true) {
+    if (!hasStorage) return;
+    auth.clear();
+    const store = remember ? localStorage : sessionStorage;
+    store.setItem(TOKEN_KEY, token);
+    if (expiresAt) store.setItem(EXPIRES_KEY, expiresAt);
+  },
+  clear() {
+    clearStore(TOKEN_KEY);
+    clearStore(EXPIRES_KEY);
+  },
 };
 
+let redirecting = false;
+
+/** Ponto único de tratamento de sessão inválida. */
+function handleUnauthorized() {
+  auth.clear();
+  if (typeof window === "undefined") return;
+
+  // Deixa a app limpar o cache do React Query: window.addEventListener(UNAUTHORIZED_EVENT, ...)
+  window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+
+  if (!redirecting && !window.location.pathname.startsWith("/login")) {
+    redirecting = true;
+    window.location.replace("/login");
+  }
+}
+
 // ------------------------------------------------------------------
-// Fetch wrapper
+// Fetch core
 // ------------------------------------------------------------------
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -324,108 +272,129 @@ interface RequestOpts {
   method?: HttpMethod;
   body?: unknown;
   query?: Record<string, string | number | undefined>;
+  /** Default: true. Usar `false` apenas em health e login. */
   protected?: boolean;
-  raw?: boolean; // retorna Response (ex: CSV export)
+  raw?: boolean; // devolve Response (ex.: CSV, /metrics)
 }
 
-async function request<T>(
-  path: string,
-  opts: RequestOpts = {},
-): Promise<T> {
+async function core(path: string, opts: RequestOpts = {}): Promise<Response> {
+  const isProtected = opts.protected !== false;
+
+  // Sem sessão: não gasta rede, não gera 401 em loop.
+  if (isProtected && !auth.token) {
+    handleUnauthorized();
+    throw new ApiHttpError(401, "UNAUTHORIZED", "Sessão expirada. Inicie sessão novamente.");
+  }
+
   const url = new URL(path, API_BASE_URL);
-
   if (opts.query) {
-    Object.entries(opts.query).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") {
-        url.searchParams.set(k, String(v));
-      }
-    });
+    for (const [k, v] of Object.entries(opts.query)) {
+      if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+    }
   }
 
-  const headers: Record<string, string> = {
-    "ngrok-skip-browser-warning": "true",
-  };
-
-  if (opts.body !== undefined) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  if (opts.protected) {
-    if (auth.token) {
-      headers["Authorization"] = `Bearer ${auth.token}`;
-    }
-
-    if (auth.apiKey) {
-      headers["X-API-Key"] = auth.apiKey;
-    }
+  const headers: Record<string, string> = { "ngrok-skip-browser-warning": "true" };
+  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+  if (isProtected) {
+    const token = auth.token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const key = auth.apiKey;
+    if (key) headers["X-API-Key"] = key;
   }
 
   const res = await fetch(url.toString(), {
     method: opts.method ?? "GET",
     headers,
-    body: opts.body !== undefined
-      ? JSON.stringify(opts.body)
-      : undefined,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
 
-  if (opts.raw) {
-    return res as unknown as T;
+  if (res.ok) return res;
+
+  // Desembrulha o envelope { "error": {...} } de api.md
+  let code = String(res.status);
+  let message = res.statusText || "Erro de pedido";
+  let request_id = res.headers.get("X-Request-Id") ?? undefined;
+  try {
+    const body = await res.json();
+    const e = body && typeof body === "object" && "error" in body ? body.error : body;
+    if (e?.code) code = String(e.code);
+    if (e?.message) message = String(e.message);
+    if (e?.request_id) request_id = String(e.request_id);
+  } catch {
+    /* corpo sem JSON: mantém defaults */
   }
 
-  if (!res.ok) {
-    let err: ApiError;
+  // 401 num pedido protegido = sessão inválida. No login (public) é só "credenciais erradas".
+  if (res.status === 401 && isProtected) handleUnauthorized();
 
-    try {
-      const body = await res.json();
+  throw new ApiHttpError(res.status, code, message, request_id);
+}
 
-      err =
-        body &&
-        typeof body === "object" &&
-        "error" in body
-          ? (body.error as ApiError)
-          : (body as ApiError);
-    } catch {
-      err = {
-        code: String(res.status),
-        message: res.statusText,
-      };
-    }
-
-    throw err;
-  }
-
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
+async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
+  const res = await core(path, opts);
+  if (opts.raw) return res as unknown as T;
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+// Backend pode devolver {data, meta} ou um array simples (+ X-Total-Count).
+// Normaliza para Paginated<T> sem tocar no Go.
+async function requestPaginated<T>(
+  path: string,
+  opts: RequestOpts = {},
+): Promise<Paginated<T>> {
+  const res = await core(path, opts);
+  const body = await res.json();
+
+  if (body && typeof body === "object" && Array.isArray(body.data)) {
+    return {
+      data: body.data,
+      meta: body.meta ?? { limit: body.data.length, offset: 0, total: body.data.length },
+    };
+  }
+
+  if (Array.isArray(body)) {
+    const header = res.headers.get("X-Total-Count");
+    return {
+      data: body,
+      meta: {
+        limit: Number(opts.query?.limit ?? body.length),
+        offset: Number(opts.query?.offset ?? 0),
+        total: header ? Number(header) : body.length,
+      },
+    };
+  }
+
+  throw new ApiHttpError(res.status, "UNEXPECTED_RESPONSE", "Resposta inesperada da API.");
 }
 
 // ------------------------------------------------------------------
 // API surface
 // ------------------------------------------------------------------
 export const api = {
-  // ---- Health & observability ----
+  // ---- Health & observability (públicos) ----
   health: () =>
-    request<{ status: string; service: string; time: string }>("/health"),
+    request<{ status: string; service: string; time: string }>("/health", { protected: false }),
   healthV1: () =>
-    request<{ status: string; service: string; time: string }>("/api/v1/health"),
+    request<{ status: string; service: string; time: string }>("/api/v1/health", {
+      protected: false,
+    }),
   metricsPrometheus: () =>
-    request<Response>("/metrics", { raw: true }),
+    request<Response>("/metrics", { raw: true, protected: false }),
 
   // ---- Auth ----
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string, remember = true) => {
     const res = await request<ApiLoginResponse>("/api/v1/auth/login", {
       method: "POST",
-      // FIX: backend migrou para login por email (coluna users.email).
-      // Body antigo era { username, password }.
       body: { email, password },
+      protected: false,
     });
-    auth.token = res.access_token;
+    auth.save(res.access_token, res.expires_at, remember);
+    redirecting = false;
     return res;
   },
   logout: () => {
-    auth.token = null;
+    auth.clear();
   },
 
   // ---- Towers ----
@@ -435,11 +404,9 @@ export const api = {
     region_id?: string;
     limit?: number;
     offset?: number;
-  }) =>
-    requestPaginated<ApiTower>("/api/v1/towers", { query: q }),
+  }) => requestPaginated<ApiTower>("/api/v1/towers", { query: q }),
 
-  getTower: (id: string) =>
-    request<ApiTower>(`/api/v1/towers/${id}`),
+  getTower: (id: string) => request<ApiTower>(`/api/v1/towers/${id}`),
 
   createTower: (body: {
     name: string;
@@ -448,8 +415,8 @@ export const api = {
     vendor: string;
     snmp_version: "v2c" | "v3";
   }) =>
-    // TODO: não consta em api.md v0 — confirmar payload exato com o handler real.
-    request<ApiTower>("/api/v1/towers", { method: "POST", body, protected: true }),
+    // TODO: confirmar payload com o handler real (não está em api.md v0).
+    request<ApiTower>("/api/v1/towers", { method: "POST", body }),
 
   configureSnmp: (
     id: string,
@@ -459,84 +426,59 @@ export const api = {
       snmp_target: string;
       snmp_community?: string;
       snmp_port?: number;
-    }
+    },
   ) =>
-    // TODO: não consta em api.md v0 — confirmar payload exato com o handler real.
-    request<ApiTower>(`/api/v1/towers/${id}/snmp`, {
-      method: "PATCH",
-      body,
-      protected: true,
-    }),
+    // TODO: confirmar payload com o handler real.
+    request<ApiTower>(`/api/v1/towers/${id}/snmp`, { method: "PATCH", body }),
 
-  // ---- Tower <-> Operators (N:N via site_operators) ----
+  // ---- Tower <-> Operators (N:N) ----
   addTowerOperator: (tower_id: string, operator_id: string) =>
     request<void>(`/api/v1/towers/${tower_id}/operators`, {
       method: "POST",
       body: { operator_id },
-      protected: true,
     }),
 
   removeTowerOperator: (tower_id: string, operator_id: string) =>
     request<void>(`/api/v1/towers/${tower_id}/operators/${operator_id}`, {
       method: "DELETE",
-      protected: true,
     }),
 
-  // ---- Tower events (histórico de alarmes/falhas por torre) ----
+  // ---- Tower events ----
   listTowerEvents: (
     tower_id: string,
     q?: {
       from?: string;
       to?: string;
       severity?: AlarmSeverity;
-      // ADICIONADO: fecha o filtro de status ativo/resolvido — o backend
-      // já suporta ?status= em GET /towers/{id}/events (ver EventFilter.Status
-      // no towercore). Sem isto, a UI de "Alarmes" continuava a mostrar
-      // eventos já resolvidos junto com os ativos.
       status?: "open" | "resolved";
       limit?: number;
       offset?: number;
-    }
-  ) =>
-    requestPaginated<ApiEvent>(`/api/v1/towers/${tower_id}/events`, { query: q }),
+    },
+  ) => requestPaginated<ApiEvent>(`/api/v1/towers/${tower_id}/events`, { query: q }),
 
   // ---- SLA ----
-  getSlaGlobal: () =>
-    request<ApiSlaGlobal>("/api/v1/sla/global"),
+  getSlaGlobal: () => request<ApiSlaGlobal>("/api/v1/sla/global"),
 
   // ---- Operators ----
   listOperators: (q?: { limit?: number; offset?: number }) =>
     requestPaginated<ApiOperator>("/api/v1/operators", { query: q }),
 
-  getOperator: (id: string) =>
-    request<ApiOperator>(`/api/v1/operators/${id}`),
+  getOperator: (id: string) => request<ApiOperator>(`/api/v1/operators/${id}`),
 
   createOperator: (body: { name: string; code: string }) =>
-    request<ApiOperator>("/api/v1/operators", {
-      method: "POST",
-      body,
-      protected: true,
-    }),
+    request<ApiOperator>("/api/v1/operators", { method: "POST", body }),
 
   updateOperator: (id: string, body: { name: string; code: string }) =>
-    request<ApiOperator>(`/api/v1/operators/${id}`, {
-      method: "PUT",
-      body,
-      protected: true,
-    }),
+    request<ApiOperator>(`/api/v1/operators/${id}`, { method: "PUT", body }),
 
   deleteOperator: (id: string) =>
-    request<void>(`/api/v1/operators/${id}`, {
-      method: "DELETE",
-      protected: true,
-    }),
+    request<void>(`/api/v1/operators/${id}`, { method: "DELETE" }),
 
   // ---- Regions ----
   listRegions: (q?: { limit?: number; offset?: number }) =>
     requestPaginated<ApiRegion>("/api/v1/regions", { query: q }),
 
-  getRegion: (id: string) =>
-    request<ApiRegion>(`/api/v1/regions/${id}`),
+  getRegion: (id: string) => request<ApiRegion>(`/api/v1/regions/${id}`),
 
   // ---- Tickets ----
   listTickets: (q?: {
@@ -544,17 +486,9 @@ export const api = {
     tower_id?: string;
     limit?: number;
     offset?: number;
-  }) =>
-    // FIX: GET /api/v1/tickets está dentro do writeChain no router.go,
-    // ou seja exige auth — por isso o 401 que viste nos logs.
-    requestPaginated<ApiTicket>("/api/v1/tickets", { query: q, protected: true }),
+  }) => requestPaginated<ApiTicket>("/api/v1/tickets", { query: q }),
 
-  // Pagina até trazer TODOS os tickets, não só os primeiros N. Antes disto,
-  // o AlarmsProvider chamava listTickets({ limit: 100 }) uma única vez —
-  // qualquer ticket fora dos 100 mais recentes (created_at desc) ficava
-  // silenciosamente de fora dos exports e do feed de alarmes, incluindo
-  // tickets fechados de períodos anteriores. api.md define limit máximo
-  // de 200 por página, por isso paginamos em vez de pedir tudo de uma vez.
+  // Pagina até trazer TODOS os tickets (limite máximo por página: 200, ver api.md).
   fetchAllTickets: async (opts?: { status?: TicketStatus; tower_id?: string }) => {
     const pageSize = 200;
     let offset = 0;
@@ -562,7 +496,6 @@ export const api = {
     for (;;) {
       const page = await requestPaginated<ApiTicket>("/api/v1/tickets", {
         query: { ...opts, limit: pageSize, offset },
-        protected: true,
       });
       all = all.concat(page.data);
       offset += page.data.length;
@@ -572,16 +505,10 @@ export const api = {
   },
 
   ackTicket: (ticket_id: string) =>
-    request<ApiTicket>(`/api/v1/tickets/${ticket_id}/ack`, {
-      method: "POST",
-      protected: true,
-    }),
+    request<ApiTicket>(`/api/v1/tickets/${ticket_id}/ack`, { method: "POST" }),
 
   closeTicket: (ticket_id: string) =>
-    request<ApiTicket>(`/api/v1/tickets/${ticket_id}/close`, {
-      method: "POST",
-      protected: true,
-    }),
+    request<ApiTicket>(`/api/v1/tickets/${ticket_id}/close`, { method: "POST" }),
 
   // ---- Metrics ----
   listMetrics: (q?: {
@@ -590,39 +517,26 @@ export const api = {
     to?: string;
     limit?: number;
     offset?: number;
-  }) =>
-    requestPaginated<ApiMetric>("/api/v1/metrics", { query: q }),
+  }) => requestPaginated<ApiMetric>("/api/v1/metrics", { query: q }),
 
   ingestMetric: (body: {
     tower_id: string;
     collected_at: string;
     metrics: Record<string, number>;
-  }) =>
-    request<ApiMetric>("/api/v1/metrics", {
-      method: "POST",
-      body,
-      protected: true,
-    }),
+  }) => request<ApiMetric>("/api/v1/metrics", { method: "POST", body }),
 
-  // ---- Energy: Generator (não no contrato v0 — endpoint extra do backend) ----
+  // ---- Energy: Generator (extra, fora do contrato v0) ----
   getTowerGenerator: (tower_id: string) =>
     request<ApiGeneratorReading>(`/api/v1/towers/${tower_id}/energy/generator`),
 
-  // Registo de gerador no site — payload por confirmar com o handler real
-  // (TODO, à semelhança de createTower/configureSnmp). Erros do backend
-  // (404 enquanto o endpoint não existir) são mostrados na UI.
   createGenerator: (
     tower_id: string,
-    body: {
-      name: string;
-      fuel_capacity_l?: number;
-      rated_power_kw?: number;
-    }
+    body: { name: string; fuel_capacity_l?: number; rated_power_kw?: number },
   ) =>
+    // TODO: payload por confirmar com o handler real.
     request<{ message?: string }>(`/api/v1/towers/${tower_id}/energy/generator`, {
       method: "POST",
       body,
-      protected: true,
     }),
 
   // ---- Users (GAP no contrato v0) ----
@@ -630,23 +544,17 @@ export const api = {
     requestPaginated<ApiUser>("/api/v1/users", { query: q }),
 
   createUser: (body: { name: string; email: string; password: string; role: UserRole }) =>
-    // TODO: confirmar assinatura real do UserHandler — roadmap menciona
-    // POST /api/v1/users ligado ao router, ainda não documentado em api.md.
-    request<ApiUser>("/api/v1/users", {
-      method: "POST",
-      body,
-      protected: true,
-    }),
-  
-  // ---- SNMP collection (não no contrato v0 — endpoint extra do backend) ----
+    request<ApiUser>("/api/v1/users", { method: "POST", body }),
+  // Falta (precisa da assinatura real do handler): getUser, updateUser, deleteUser.
+
+  // ---- SNMP collection (extra) ----
   triggerSnmpCollect: (tower_id: string) =>
     request<{ message: string }>("/api/v1/collect/snmp", {
       method: "POST",
       body: { tower_id },
-      protected: true,
     }),
 
-  // ---- Audit logs (não no contrato v0 — endpoint extra do backend) ----
+  // ---- Audit logs (extra) ----
   listAuditLogs: (q?: {
     tower_id?: string;
     user_id?: string;
@@ -655,25 +563,12 @@ export const api = {
     to?: string;
     limit?: number;
     offset?: number;
-  }) =>
-    requestPaginated<ApiAuditLog>("/api/v1/audit-logs", { query: q, protected: true }),
+  }) => requestPaginated<ApiAuditLog>("/api/v1/audit-logs", { query: q }),
 
-  getAuditLog: (id: string) =>
-    request<ApiAuditLog>(`/api/v1/audit-logs/${id}`, { protected: true }),
+  getAuditLog: (id: string) => request<ApiAuditLog>(`/api/v1/audit-logs/${id}`),
 
   exportAuditLogsCsv: () =>
-    request<Response>("/api/v1/audit-logs/export.csv", {
-      protected: true,
-      raw: true,
-    }),
-
-  // ---- Users (GAP) ----
-  // TODO: roadmap menciona UserHandler / POST /api/v1/users a ligar ao
-  // router, mas não há nenhum método aqui ainda. Falta:
-  //   - createUser(body)
-  //   - listUsers(q?)
-  //   - getUser(id) / updateUser(id, body) / deleteUser(id), se existirem
-  // Preciso da assinatura real do handler para implementar sem adivinhar.
+    request<Response>("/api/v1/audit-logs/export.csv", { raw: true }),
 };
 
 export default api;
